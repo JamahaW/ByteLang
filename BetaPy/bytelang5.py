@@ -38,6 +38,8 @@ BYTELANG 5 — Техническая документация
 """
 import enum
 
+import BetaPy.utils
+
 
 class TokenType(enum.Enum):
     DIRECTIVE = enum.auto()
@@ -57,12 +59,39 @@ class Token:
         return f"{self.type} {self.lexeme}{self.args}#{self.line}"
 
 
+class Instruction:
+
+    def __init__(self, package: str, identifier: str, index: int, args: list[str], inlining: bool):
+        self.signature = args
+        self.inlining = inlining
+        self.identifier = identifier
+        self.index = index
+        self.__string = f"{package}::{self.identifier}#{self.index}({' '.join(self.signature)})"
+
+    def __repr__(self):
+        return self.__string
+
+
 class ByteLangCompiler:
 
     def __init__(self):
         self.COMMENT_CHAR = ';'
         self.DIRECTIVE_CHAR = '.'
         self.MARK_CHAR = ':'
+
+        self.instructions = None
+
+    def setInstructionPackage(self, package_path: str):
+        package_json = BetaPy.utils.File.readJSON(package_path)
+
+        self.instructions = dict[str, Instruction]()
+
+        package_name = package_path.split(".")[0]
+
+        for index, (identifier, value) in enumerate(package_json.items()):
+            self.instructions[identifier] = Instruction(package_name, identifier, index, value["args"], value["in"])
+
+        pass
 
     def tokenize(self, source) -> list[Token]:
         buffer = list()

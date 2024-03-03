@@ -1,3 +1,4 @@
+import json
 import struct
 
 
@@ -33,6 +34,10 @@ class File:
     @classmethod
     def saveBinary(cls, filepath: str, _data: bytes):
         cls.__fileSave(filepath, "wb", _data)
+
+    @classmethod
+    def readJSON(cls, filepath: str) -> dict | list:
+        return cls.__fileGet(filepath, "r", lambda file: json.load(file))
 
 
 class Bytes:

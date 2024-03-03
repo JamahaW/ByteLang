@@ -5,6 +5,10 @@ import utils
 def main():
     compiler = bytelang5.ByteLangCompiler()
 
+    compiler.setInstructionPackage("test_instruction_package.json")
+
+    print(list(compiler.instructions.values()))
+
     input_path: str = "A:/Projects/ByteLang/test/tester.bl"
     source: str = utils.File.read(input_path)
 
