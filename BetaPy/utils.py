@@ -1,4 +1,5 @@
 import struct
+from types import UnionType
 
 
 class File:
@@ -21,8 +22,6 @@ class File:
 class Bytes:
     """Упаковка и распаковка двоичных структур """
 
-    # "string": "s"
-
     class __DataType:
         def __init__(self, size: int, format_name: str):
             self.fmt_char = format_name
@@ -43,65 +42,47 @@ class Bytes:
         "double": __DataType(8, "d"),
     }
 
-    __packable = str | float | int
+    @classmethod
+    def __translateTypeFormat(cls, _format: str) -> str:
+        return "".join((
+            cls.__types.get(fmt).fmt_char
+            for fmt in _format.split(" ")
+        ))
 
     @classmethod
-    def pack(cls, _format: str, _values: list[__packable | list[__packable]]) -> bytes:
-        formats = _format.split(" ")
-
-        if len(formats) != len(_values):
-            raise ValueError(f"formats must be equals values count")
-
-        ret = bytes()
-
-        for fmt, array in zip(formats, _values):
-            array_length = 1
-            string_mode = False
-
-            if fmt.startswith("char"):
-                array = bytes(array, encoding="utf-8")
-                string_mode = True
-
-            if fmt[-1] == "]":
-                fmt, array_length = fmt.split("[")
-
-                array_length = int(array_length[:-1])
-
-                if array_length < len(array):
-                    raise ValueError(f"unexpected array len: {array_length} - {array}")
-
-                diff = array_length - len(array)
-
-                ex = (0,) * diff
-
-                if string_mode:
-                    array += bytes(ex)
-                else:
-                    array.extend(ex)
-
-            else:
-                array = [array]
-
-            if (datatype := cls.__types.get(fmt)) is None:
-                raise ValueError(f"Invalid Format Key: {fmt}")
-
-            if string_mode:
-                ret += struct.pack(f"{array_length}s", array)
-
-            else:
-                ret += struct.pack(datatype.fmt_char * array_length, *array)
-
-        return ret
+    def __convertTypes(cls, _values: tuple) -> tuple:
+        return tuple((
+            bytes(val, encoding="utf-8") if isinstance(val, str) else val
+            for val in _values
+        ))
 
     @classmethod
-    def unpack(cls, _data: bytes, _format: str) -> list[__packable | list[__packable]]:
-        pass
+    def __reverseConvertTypes(cls, _values: tuple):
+        return tuple((
+            str(val, encoding="utf-8") if isinstance(val, bytes) else val
+            for val in _values
+        ))
+
+    @classmethod
+    def pack(cls, _format: str, _values: tuple) -> bytes:
+        return struct.pack(cls.__translateTypeFormat(_format), *cls.__convertTypes(_values))
+
+    @classmethod
+    def unpack(cls, _format: str, _data: bytes) -> tuple:
+        return tuple(cls.__reverseConvertTypes(struct.unpack(cls.__translateTypeFormat(_format), _data)))
 
 
 if __name__ == "__main__":
-    data = Bytes.pack2("char[10] double[10]", [
-        "abcd",
-        [1/i for i in range(1, 10)]
-    ])
+    f = "uint8 int8 char"
 
-    print(list(data))
+    data = Bytes.pack(f, (
+        155,
+        -100,
+        " "
+    ))
+
+    print(data)
+
+    values = Bytes.unpack(f, data)
+
+    print(values)
