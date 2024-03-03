@@ -3,7 +3,6 @@ import utils
 
 
 def main():
-
     compiler = bytelang5.ByteLangCompiler()
 
     input_path: str = "A:/Projects/ByteLang/test/tester.bl"
@@ -16,6 +15,6 @@ def main():
     # utils.File.save(output_path, program, "wb")
 
     return
-   
-   
+
+
 main()

@@ -28,6 +28,13 @@ BYTELANG 5 — Техническая документация
     Формат метки: mark:
     Пример:
     mark:
+
+
+Каждый идентификатор является указателем на данные.
+Запись
+.ptr int8 abc 1
+Означает, что идентификатор abc имеет адрес 1, который указывает на значение типа int8.
+
 """
 import enum
 
@@ -85,4 +92,6 @@ class ByteLangCompiler:
     def execute(self, source: str):
         tokens = self.tokenize(source)
 
-        return tokens
+        ret = tokens
+
+        return ret
