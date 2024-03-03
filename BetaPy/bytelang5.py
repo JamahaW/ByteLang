@@ -82,7 +82,7 @@ class ByteLangCompiler:
                     lexeme = lexeme[1:]
                     _type = TokenType.DIRECTIVE
 
-                else:
+                elif True:  # command exists
                     _type = TokenType.INSTRUCTION
 
                 buffer.append(Token(_type, lexeme, args, index + 1))

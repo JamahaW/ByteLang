@@ -1,67 +1,56 @@
 import struct
-from types import UnionType
 
 
 class File:
     """Обёртка для работы с файлами"""
 
     @staticmethod
-    def read(filepath: str):
-        file = open(filepath)
-        ret = file.read()
-        file.close()
+    def __fileGet(filepath: str, mode: str, func):
+        with open(filepath, mode) as file:
+            ret = func(file)
         return ret
 
-    @staticmethod
-    def save(filepath: str, data: str | bytes, mode: str):
-        file = open(file=filepath, mode=mode)
-        file.write(data)
-        file.close()
+    @classmethod
+    def __fileRead(cls, filepath: str, mode: str) -> str:
+        return cls.__fileGet(filepath, mode, lambda file: file.read())
+
+    @classmethod
+    def __fileSave(cls, filepath: str, mode: str, _data: str | bytes):
+        cls.__fileGet(filepath, mode, lambda file: file.write(_data))
+
+    @classmethod
+    def read(cls, filepath: str):
+        return cls.__fileRead(filepath, "r")
+
+    @classmethod
+    def readBinary(cls, filepath: str):
+        return cls.__fileRead(filepath, "rb")
+
+    @classmethod
+    def save(cls, filepath: str, _data: str):
+        cls.__fileSave(filepath, "w", _data)
+
+    @classmethod
+    def saveBinary(cls, filepath: str, _data: bytes):
+        cls.__fileSave(filepath, "wb", _data)
 
 
 class Bytes:
     """Упаковка и распаковка двоичных структур """
 
-    class __DataType:
-        def __init__(self, size: int, format_name: str):
-            self.fmt_char = format_name
-            self.size = size
+    __TYPES = {"char": "c", "int8": "b", "uint8": "B", "bool": "?", "int16": "h", "uint16": "H", "int32": "i", "uint32": "I", "int64": "q", "uint64": "Q", "float": "f", "double": "d"}
 
-    __types: dict[str, __DataType] = {
-        "char": __DataType(1, "c"),
-        "int8": __DataType(1, "b"),
-        "uint8": __DataType(1, "B"),
-        "bool": __DataType(1, "?"),
-        "int16": __DataType(2, "h"),
-        "uint16": __DataType(2, "H"),
-        "int32": __DataType(4, "i"),
-        "uint32": __DataType(4, "I"),
-        "int64": __DataType(8, "q"),
-        "uint64": __DataType(8, "Q"),
-        "float": __DataType(4, "f"),
-        "double": __DataType(8, "d"),
-    }
+    @staticmethod
+    def __convertTypes(_values: tuple) -> tuple:
+        return tuple((bytes(val, encoding="utf-8") if isinstance(val, str) else val for val in _values))
+
+    @staticmethod
+    def __reverseConvertTypes(_values: tuple):
+        return tuple((str(val, encoding="utf-8") if isinstance(val, bytes) else val for val in _values))
 
     @classmethod
     def __translateTypeFormat(cls, _format: str) -> str:
-        return "".join((
-            cls.__types.get(fmt).fmt_char
-            for fmt in _format.split(" ")
-        ))
-
-    @classmethod
-    def __convertTypes(cls, _values: tuple) -> tuple:
-        return tuple((
-            bytes(val, encoding="utf-8") if isinstance(val, str) else val
-            for val in _values
-        ))
-
-    @classmethod
-    def __reverseConvertTypes(cls, _values: tuple):
-        return tuple((
-            str(val, encoding="utf-8") if isinstance(val, bytes) else val
-            for val in _values
-        ))
+        return "".join((cls.__TYPES[fmt] for fmt in _format.split(" ")))
 
     @classmethod
     def pack(cls, _format: str, _values: tuple) -> bytes:
@@ -70,6 +59,10 @@ class Bytes:
     @classmethod
     def unpack(cls, _format: str, _data: bytes) -> tuple:
         return tuple(cls.__reverseConvertTypes(struct.unpack(cls.__translateTypeFormat(_format), _data)))
+
+    @classmethod
+    def size(cls, _format: str) -> int:
+        return struct.calcsize(cls.__translateTypeFormat(_format))
 
 
 if __name__ == "__main__":
