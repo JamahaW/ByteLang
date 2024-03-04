@@ -1,18 +1,18 @@
 {
   "test_cmd": {
-    "args": ["uint8", "uint8"],
+    "args": "u8 u8",
     "in": false
   },
   "exit": {
-    "args": ["uint16"],
+    "args": "u16",
     "in": false
   },
   "print": {
-    "args": ["uint8"],
+    "args": "u8",
     "in": true
   },
   "println": {
-    "args": [],
+    "args": "",
     "in": false
   }
 }

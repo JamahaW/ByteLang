@@ -59,9 +59,16 @@ class Token:
         return f"{self.type} {self.lexeme}{self.args}#{self.line}"
 
 
+class ByteLangInitError(Exception):
+    pass
+
+
 class Instruction:
 
     def __init__(self, package: str, identifier: str, index: int, args: list[str], inlining: bool):
+        if not BetaPy.utils.Bytes.typesExist(args) and args[-1] != "":
+            raise ByteLangInitError(f"invalid type: {args}")
+
         self.signature = args
         self.inlining = inlining
         self.identifier = identifier
@@ -89,9 +96,7 @@ class ByteLangCompiler:
         package_name = package_path.split(".")[0]
 
         for index, (identifier, value) in enumerate(package_json.items()):
-            self.instructions[identifier] = Instruction(package_name, identifier, index, value["args"], value["in"])
-
-        pass
+            self.instructions[identifier] = Instruction(package_name, identifier, index, value["args"].split(" "), value["in"])
 
     def tokenize(self, source) -> list[Token]:
         buffer = list()
@@ -111,7 +116,7 @@ class ByteLangCompiler:
                     lexeme = lexeme[1:]
                     _type = TokenType.DIRECTIVE
 
-                elif True:  # command exists
+                elif lexeme in self.instructions.keys():  # command exists
                     _type = TokenType.INSTRUCTION
 
                 buffer.append(Token(_type, lexeme, args, index + 1))

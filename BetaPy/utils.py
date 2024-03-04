@@ -43,7 +43,7 @@ class File:
 class Bytes:
     """Упаковка и распаковка двоичных структур """
 
-    __TYPES = {"char": "c", "int8": "b", "uint8": "B", "bool": "?", "int16": "h", "uint16": "H", "int32": "i", "uint32": "I", "int64": "q", "uint64": "Q", "float": "f", "double": "d"}
+    __TYPES = {"char": "c", "bool": "?", "i8": "b", "u8": "B", "i16": "h", "u16": "H", "i32": "i", "u32": "I", "i64": "q", "u64": "Q", "f32": "f", "f64": "d"}
 
     @staticmethod
     def __convertTypes(_values: tuple) -> tuple:
@@ -52,6 +52,10 @@ class Bytes:
     @staticmethod
     def __reverseConvertTypes(_values: tuple):
         return tuple((str(val, encoding="utf-8") if isinstance(val, bytes) else val for val in _values))
+
+    @classmethod
+    def typesExist(cls, identifiers: list[str]) -> bool:
+        return all((_type in cls.__TYPES.keys() for _type in identifiers))
 
     @classmethod
     def __translateTypeFormat(cls, _format: str) -> str:
@@ -71,7 +75,7 @@ class Bytes:
 
 
 if __name__ == "__main__":
-    f = "uint8 int8 char"
+    f = "u8 i8 char"
 
     data = Bytes.pack(f, (
         155,

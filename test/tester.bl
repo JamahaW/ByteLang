@@ -1,5 +1,10 @@
-test12345   ;  111
- main:
-    ; 111
-  .end
-add 1 2 3
+.start 4
+
+.ptr u8 A 1
+.ptr u8 B 2
+
+.ptr u16 AB 1
+
+main:
+
+exit 0
