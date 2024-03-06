@@ -6,25 +6,37 @@ class File:
     """Обёртка для работы с файлами"""
 
     @staticmethod
-    def __fileGet(filepath: str, mode: str, func):
+    def __forFileExecute(filepath: str, mode: str, func):
+        """
+выполнить `func` для файла
+        :param func: `lambda f`: ...
+        :return: `ret = func(file)`
+        """
         with open(filepath, mode) as file:
             ret = func(file)
         return ret
 
     @classmethod
-    def __fileRead(cls, filepath: str, mode: str) -> str:
-        return cls.__fileGet(filepath, mode, lambda file: file.read())
+    def __fileRead(cls, filepath: str, mode: str) -> str | bytes:
+        """
+Прочесть файл с режимом `mode`
+        :return: `file.read()`
+        """
+        return cls.__forFileExecute(filepath, mode, lambda file: file.read())
 
     @classmethod
     def __fileSave(cls, filepath: str, mode: str, _data: str | bytes):
-        cls.__fileGet(filepath, mode, lambda file: file.write(_data))
+        """
+Сохранить файл с режимом `mode`
+        """
+        cls.__forFileExecute(filepath, mode, lambda file: file.write(_data))
 
     @classmethod
-    def read(cls, filepath: str):
+    def read(cls, filepath: str) -> str:
         return cls.__fileRead(filepath, "r")
 
     @classmethod
-    def readBinary(cls, filepath: str):
+    def readBinary(cls, filepath: str) -> bytes:
         return cls.__fileRead(filepath, "rb")
 
     @classmethod
@@ -37,7 +49,31 @@ class File:
 
     @classmethod
     def readJSON(cls, filepath: str) -> dict | list:
-        return cls.__fileGet(filepath, "r", lambda file: json.load(file))
+        return cls.__forFileExecute(filepath, "r", lambda file: json.load(file))
+
+    @classmethod
+    def readPackage(cls, filepath: str) -> tuple[tuple[str, tuple[str]]]:
+        """Прочесть пакет инструкций ByteLang"""
+        ret = list()
+        names_used = set[str]()
+
+        lines = cls.read(filepath).split("\n")
+
+        for line in lines:
+            line = line.strip()
+
+            if line == "":
+                continue
+
+            name, *signature = line.split()
+
+            if name in names_used:
+                raise KeyError(f"In ByteLang Instruction package '{filepath}' redefinition of '{name}'")
+
+            names_used.add(name)
+            ret.append((name, signature))
+
+        return tuple[tuple[str, tuple[str]]](ret)
 
 
 class Bytes:
@@ -54,8 +90,8 @@ class Bytes:
         return tuple((str(val, encoding="utf-8") if isinstance(val, bytes) else val for val in _values))
 
     @classmethod
-    def typesExist(cls, identifiers: list[str]) -> bool:
-        return all((_type in cls.__TYPES.keys() for _type in identifiers))
+    def typeExist(cls, _type: str) -> bool:
+        return _type in cls.__TYPES.keys()
 
     @classmethod
     def __translateTypeFormat(cls, _format: str) -> str:
@@ -75,16 +111,4 @@ class Bytes:
 
 
 if __name__ == "__main__":
-    f = "u8 i8 char"
-
-    data = Bytes.pack(f, (
-        155,
-        -100,
-        " "
-    ))
-
-    print(data)
-
-    values = Bytes.unpack(f, data)
-
-    print(values)
+    pass

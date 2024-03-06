@@ -1,22 +1,25 @@
-import bytelang5
 import utils
+import bytelang5
 
 
 def main():
     compiler = bytelang5.ByteLangCompiler()
 
-    compiler.setInstructionPackage("test_instruction_package.json")
+    compiler.addPackage(r"A:\Projects\ByteLang\BetaPy\pack\test.blp")
+    compiler.usePackage("test")
 
-    print(list(compiler.instructions.values()))
+    print("\n".join(map(str, compiler.used_package.instructions.values())))
 
-    input_path: str = "A:/Projects/ByteLang/test/tester.bl"
-    source: str = utils.File.read(input_path)
-
-    program: bytes = compiler.execute(source)
-    print(program)
-
+    input_path: str = "A:/Projects/ByteLang/test/tester.bls"
     output_path: str = "A:/Projects/ByteLang/test/tester.blc"
-    # utils.File.save(output_path, program, "wb")
+
+    try:
+        compiler.execute(input_path, output_path)
+
+    except bytelang5.ByteLangError as e:
+        print(e)
+
+    print(list(utils.File.readBinary(output_path)))
 
     return
 

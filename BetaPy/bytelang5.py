@@ -2,8 +2,23 @@
 BYTELANG 5 — Техническая документация
 
 1. Типы файлов:
-    — .bl — текстовый файл исходного байткода
-    — .blc — скомпилированный байткод
+    — .bls — исходный байткод (ByteLang Source)
+
+    — .blc — скомпилированный байткод (ByteLang Compiled)
+        двоичный формат
+
+    — .blp — пакет команд (ByteLang Package)
+        Опции настроек объявляются следующим образом:
+            .name value
+        Существуют следующие настройки:
+            .max_program_size - Максимальный размер скомпилированной программы
+            .instruction_ptr_size - Размер в байтах указателя инструкции -> макс кол-во инструкций
+            .heap_ptr_size - Размер в байтах указателя кучи -> макс. размер кучи
+
+        Инструкции объявляются следующим образом:
+            имя тип1 тип2 ...
+
+        Недопустимы повторяющиеся идентификаторы
 
 2. Ограничение на одну команду в строке:
     каждая команда должна быть записана в отдельной строке.
@@ -14,8 +29,16 @@ BYTELANG 5 — Техническая документация
 
 4. Директивы:
     Директивы используются для выполнения специальных функций.
-    Формат директивы: .directive arg1 arg2
+    Формат директивы:.directive arg1 arg2
     Пример:.directive arg1 arg2
+
+    Существующие директивы
+
+    use <package path> - использовать пакет ByteLang
+    heap <size> - выделить память в кучи
+    ptr <T> <name> <index> - объявить указатель name на тип T по адресу index
+    inline <cmd> - последний аргумент* команды будет встроен в код, *если аргумент является указателем
+    define <name> <value>
 
 5. Команды:
     Команды выполняют определенные действия.
@@ -37,19 +60,21 @@ BYTELANG 5 — Техническая документация
 
 """
 import enum
+import pathlib
+import typing
 
-import BetaPy.utils
+import utils
 
 
-class TokenType(enum.Enum):
+class StatementType(enum.Enum):
     DIRECTIVE = enum.auto()
     MARK = enum.auto()
     INSTRUCTION = enum.auto()
 
 
-class Token:
+class Statement:
 
-    def __init__(self, _type: TokenType, lexeme: str, args: list[str], line: int):
+    def __init__(self, _type: StatementType, lexeme: str, args: list[str], line: int):
         self.type = _type
         self.lexeme = lexeme
         self.args = args
@@ -59,24 +84,87 @@ class Token:
         return f"{self.type} {self.lexeme}{self.args}#{self.line}"
 
 
-class ByteLangInitError(Exception):
+class ByteLangError(Exception):
     pass
 
 
-class Instruction:
+class Argument:
+    """Аргумент инструкции"""
 
-    def __init__(self, package: str, identifier: str, index: int, args: list[str], inlining: bool):
-        if not BetaPy.utils.Bytes.typesExist(args) and args[-1] != "":
-            raise ByteLangInitError(f"invalid type: {args}")
+    POINTER_CHAR = "*"
 
-        self.signature = args
-        self.inlining = inlining
-        self.identifier = identifier
-        self.index = index
-        self.__string = f"{package}::{self.identifier}#{self.index}({' '.join(self.signature)})"
+    def __init__(self, data_type: str, is_reference: bool):
+        self.type: typing.Final[str] = data_type
+        """Идентификатор типа аргумента"""
+        self.pointer: typing.Final[bool] = is_reference
+        """Передаётся ли аргумент по указателю или значению"""
+
+        self.__string = f"{self.type}"
+        if self.pointer:
+            self.__string += self.POINTER_CHAR
 
     def __repr__(self):
         return self.__string
+
+
+class Instruction:
+    """Инструкция"""
+
+    def __init__(self, package: str, identifier: str, index: int, args: tuple[Argument]):
+        self.signature: typing.Final[tuple[Argument]] = args
+        """Сигнатура"""
+        self.identifier: typing.Final[str] = identifier
+        """Уникальный строчный идентификатор инструкции"""
+        self.index: typing.Final[int] = index
+        """Уникальный индекс инструкции"""
+        self.can_inline: typing.Final[bool] = len(self.signature) > 0 and self.signature[-1].pointer == True
+        """Может ли последний аргумент инструкции быть поставлен по значению?"""
+        self.__string = f"{package}::{self.identifier}#{self.index}{self.signature}"
+
+    def __repr__(self):
+        return self.__string
+
+
+class Package:
+    """Пакет инструкций"""
+
+    def __init__(self, json_path: str):
+        self.path: str = json_path
+        """Путь к пакету"""
+        self.name: str = pathlib.Path(json_path).stem
+        """Уникальный идентификатор пакета"""
+        self.instructions: typing.Final[dict[str, Instruction]] = self.__loadInstructions()
+        """Набор инструкций"""
+
+    def __parseInstruction(self, identifier, args):
+        signature = list[Argument]()
+
+        for arg_i, arg in enumerate(args):
+            ref = False
+
+            if Argument.POINTER_CHAR == arg[-1]:
+                arg = arg[:-1]
+                ref = True
+
+            if not utils.Bytes.typeExist(arg):
+                raise ByteLangError(f"Error in package '{self.path}', Instruction '{identifier}{args}', at arg: {arg_i} unknown type: '{arg}'")
+
+            signature.append(Argument(arg, ref))
+
+        return tuple[Argument](signature)
+
+    def __loadInstructions(self):
+        package_values = utils.File.readPackage(self.path)
+
+        return {
+            identifier: Instruction(
+                self.name,
+                identifier,
+                index,
+                self.__parseInstruction(identifier, signature)
+            )
+            for index, (identifier, signature) in enumerate(package_values)
+        }
 
 
 class ByteLangCompiler:
@@ -86,19 +174,10 @@ class ByteLangCompiler:
         self.DIRECTIVE_CHAR = '.'
         self.MARK_CHAR = ':'
 
-        self.instructions = None
+        self.__packages = dict[str, Package]()
+        self.used_package: None | Package = None
 
-    def setInstructionPackage(self, package_path: str):
-        package_json = BetaPy.utils.File.readJSON(package_path)
-
-        self.instructions = dict[str, Instruction]()
-
-        package_name = package_path.split(".")[0]
-
-        for index, (identifier, value) in enumerate(package_json.items()):
-            self.instructions[identifier] = Instruction(package_name, identifier, index, value["args"].split(" "), value["in"])
-
-    def tokenize(self, source) -> list[Token]:
+    def tokenize(self, source) -> list[Statement]:
         buffer = list()
         source_lines = source.split("\n")
 
@@ -109,23 +188,43 @@ class ByteLangCompiler:
                 _type = None
 
                 if lexeme[-1] == self.MARK_CHAR:
-                    _type = TokenType.MARK
+                    _type = StatementType.MARK
                     lexeme = lexeme[:-1]
 
                 elif lexeme[0] == self.DIRECTIVE_CHAR:
                     lexeme = lexeme[1:]
-                    _type = TokenType.DIRECTIVE
+                    _type = StatementType.DIRECTIVE
 
-                elif lexeme in self.instructions.keys():  # command exists
-                    _type = TokenType.INSTRUCTION
+                elif lexeme in self.used_package.instructions.keys():  # command exists
+                    _type = StatementType.INSTRUCTION
 
-                buffer.append(Token(_type, lexeme, args, index + 1))
+                else:
+                    raise ByteLangError(f"Invalid Statement: '{lexeme}' at Line {index} '{line}'")
+
+                buffer.append(Statement(_type, lexeme, args, index + 1))
 
         return buffer
 
-    def execute(self, source: str):
+    def addPackage(self, package_path: str):
+        package = Package(package_path)
+        self.__packages[package.name] = package
+
+    def usePackage(self, name: str):
+        if (u := self.__packages.get(name)) is None:
+            raise ByteLangError(f"unknown instructions package: {name}")
+
+        self.used_package = u
+
+    def execute(self, input_path: str, output_path: str):
+        if self.used_package is None:
+            raise ByteLangError("need to select package")
+
+        source = utils.File.read(input_path)
+
         tokens = self.tokenize(source)
 
-        ret = tokens
+        print(tokens)
 
-        return ret
+        program = bytes()
+
+        utils.File.saveBinary(output_path, program)
