@@ -1,71 +1,9 @@
-"""
-BYTELANG 5 — Техническая документация
-
-1. Типы файлов:
-    - .bls — исходный байткод (ByteLang Source)
-
-    - .blc — скомпилированный байткод (ByteLang Compiled)
-        двоичный формат
-
-    - .blp — пакет команд (ByteLang Package)
-        Инструкции объявляются следующим образом:
-            имя тип1 тип2 ...
-
-        Недопустимы повторяющиеся идентификаторы
-
-    - json (Параметры платформы) :
-        Существуют следующие настройки:
-        description     - описание пакета
-        program_ptr     - Размер в байтах указателя программы (n) => 2^n >= P макс размер программы
-        program_max_len - Максимальный размер скомпилированной программы
-        instruction_ptr - Размер в байтах указателя инструкции -> макс кол-во инструкций
-        heap_ptr        - Размер в байтах указателя кучи -> макс. размер кучи
-
-2. Ограничение на одну команду в строке:
-    каждая команда должна быть записана в отдельной строке.
-
-3. Комментарии:
-    Для добавления комментариев используется символ «;». Пример:
-    ; Это комментарий
-
-4. Директивы:
-    Директивы используются для выполнения специальных функций.
-    Формат директивы:.directive arg1 arg2
-    Пример:.directive arg1 arg2
-
-    Существующие директивы
-
-    use <package path> - использовать пакет ByteLang
-    platform <platform_json> - компиляция под конфигурацию платформы
-    heap <size> - выделить память в кучи
-    ptr <T> <name> <index> - объявить указатель name на тип T по адресу index
-    inline <cmd> - последний аргумент* команды будет встроен в код, *если аргумент является указателем
-    define <name> <value>
-
-5. Команды:
-    Команды выполняют определенные действия.
-    Формат команды: command_name arg1 arg2
-    Пример:
-    command_name arg1 arg2
-
-6. Метки:
-    Метки используются для обозначения определенных точек в коде.
-    Формат метки: mark:
-    Пример:
-    mark:
-
-
-Каждый идентификатор является указателем на данные.
-Запись
-.ptr int8 abc 1
-Означает, что идентификатор abc имеет адрес 1, который указывает на значение типа int8.
-
-"""
 import enum
 import pathlib
 import typing
 
-import utils
+from . import utils
+from .errors import ByteLangError
 
 
 class StatementType(enum.Enum):
@@ -75,6 +13,7 @@ class StatementType(enum.Enum):
 
 
 class Statement:
+    """Выражение"""
 
     def __init__(self, _type: StatementType, lexeme: str, args: list[str], line: int):
         self.type = _type
@@ -84,10 +23,6 @@ class Statement:
 
     def __repr__(self):
         return f"{self.type} {self.lexeme}{self.args}#{self.line}"
-
-
-class ByteLangError(Exception):
-    pass
 
 
 class Argument:
@@ -173,6 +108,7 @@ class Package:
 
 
 class Platform:
+    """Характеристики платформы"""
 
     def __init__(self, json_path: str):
         self.PATH: typing.Final[str] = json_path
@@ -187,6 +123,7 @@ class Platform:
 
 
 class ContextManager:
+    """Менеджер загрузки контекста"""
 
     def __init__(self, P):
         self.P = P
@@ -205,6 +142,7 @@ class ContextManager:
 
 
 class ByteLangCompiler:
+    """Компилятор"""
 
     def __init__(self):
         self.COMMENT_CHAR = ';'

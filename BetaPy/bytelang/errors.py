@@ -1,0 +1,2 @@
+class ByteLangError(Exception):
+    pass
