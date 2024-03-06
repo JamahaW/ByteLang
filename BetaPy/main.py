@@ -1,17 +1,20 @@
-import utils
 import bytelang5
+import utils
 
 
 def main():
     compiler = bytelang5.ByteLangCompiler()
 
-    compiler.addPackage(r"A:\Projects\ByteLang\BetaPy\pack\test.blp")
-    compiler.usePackage("test")
+    compiler.packages.load(r"A:\Projects\ByteLang\pack\test.blp")
+    compiler.packages.use("code")
+    print(compiler.packages.used)
 
-    print("\n".join(map(str, compiler.used_package.instructions.values())))
+    compiler.platforms.load(r"A:\Projects\ByteLang\platforms\test.json")
+    compiler.platforms.use("code")
+    print(compiler.platforms.used)
 
-    input_path: str = "A:/Projects/ByteLang/test/tester.bls"
-    output_path: str = "A:/Projects/ByteLang/test/tester.blc"
+    input_path: str = "A:/Projects/ByteLang/code/tester.bls"
+    output_path: str = "A:/Projects/ByteLang/code/tester.blc"
 
     try:
         compiler.execute(input_path, output_path)

@@ -1,0 +1,7 @@
+{
+  "description": "тест-платформа для отладки",
+  "program_max_len": 512,
+  "program_ptr": 2,
+  "heap_ptr": 1,
+  "instruction_index": 1
+}

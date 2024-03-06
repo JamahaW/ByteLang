@@ -2,23 +2,24 @@
 BYTELANG 5 — Техническая документация
 
 1. Типы файлов:
-    — .bls — исходный байткод (ByteLang Source)
+    - .bls — исходный байткод (ByteLang Source)
 
-    — .blc — скомпилированный байткод (ByteLang Compiled)
+    - .blc — скомпилированный байткод (ByteLang Compiled)
         двоичный формат
 
-    — .blp — пакет команд (ByteLang Package)
-        Опции настроек объявляются следующим образом:
-            .name value
-        Существуют следующие настройки:
-            .max_program_size - Максимальный размер скомпилированной программы
-            .instruction_ptr_size - Размер в байтах указателя инструкции -> макс кол-во инструкций
-            .heap_ptr_size - Размер в байтах указателя кучи -> макс. размер кучи
-
+    - .blp — пакет команд (ByteLang Package)
         Инструкции объявляются следующим образом:
             имя тип1 тип2 ...
 
         Недопустимы повторяющиеся идентификаторы
+
+    - json (Параметры платформы) :
+        Существуют следующие настройки:
+        description     - описание пакета
+        program_ptr     - Размер в байтах указателя программы (n) => 2^n >= P макс размер программы
+        program_max_len - Максимальный размер скомпилированной программы
+        instruction_ptr - Размер в байтах указателя инструкции -> макс кол-во инструкций
+        heap_ptr        - Размер в байтах указателя кучи -> макс. размер кучи
 
 2. Ограничение на одну команду в строке:
     каждая команда должна быть записана в отдельной строке.
@@ -35,6 +36,7 @@ BYTELANG 5 — Техническая документация
     Существующие директивы
 
     use <package path> - использовать пакет ByteLang
+    platform <platform_json> - компиляция под конфигурацию платформы
     heap <size> - выделить память в кучи
     ptr <T> <name> <index> - объявить указатель name на тип T по адресу index
     inline <cmd> - последний аргумент* команды будет встроен в код, *если аргумент является указателем
@@ -128,13 +130,16 @@ class Instruction:
 class Package:
     """Пакет инструкций"""
 
-    def __init__(self, json_path: str):
-        self.path: str = json_path
+    def __init__(self, package_path: str):
+        self.PATH: str = package_path
         """Путь к пакету"""
-        self.name: str = pathlib.Path(json_path).stem
+        self.NAME: str = pathlib.Path(package_path).stem
         """Уникальный идентификатор пакета"""
-        self.instructions: typing.Final[dict[str, Instruction]] = self.__loadInstructions()
+        self.INSTRUCTIONS: typing.Final[dict[str, Instruction]] = self.__loadInstructions()
         """Набор инструкций"""
+
+    def __repr__(self):
+        return f"Package '{self.NAME}' from '{self.PATH}' instructions: {self.INSTRUCTIONS}"
 
     def __parseInstruction(self, identifier, args):
         signature = list[Argument]()
@@ -147,24 +152,56 @@ class Package:
                 ref = True
 
             if not utils.Bytes.typeExist(arg):
-                raise ByteLangError(f"Error in package '{self.path}', Instruction '{identifier}{args}', at arg: {arg_i} unknown type: '{arg}'")
+                raise ByteLangError(f"Error in package '{self.PATH}', Instruction '{identifier}{args}', at arg: {arg_i} unknown type: '{arg}'")
 
             signature.append(Argument(arg, ref))
 
         return tuple[Argument](signature)
 
     def __loadInstructions(self):
-        package_values = utils.File.readPackage(self.path)
+        package_values = utils.File.readPackage(self.PATH)
 
         return {
             identifier: Instruction(
-                self.name,
+                self.NAME,
                 identifier,
                 index,
                 self.__parseInstruction(identifier, signature)
             )
             for index, (identifier, signature) in enumerate(package_values)
         }
+
+
+class Platform:
+
+    def __init__(self, json_path: str):
+        self.PATH: typing.Final[str] = json_path
+        """путь к конфигурации платформы"""
+        self.NAME: typing.Final[str] = pathlib.Path(json_path).stem
+        """имя конфигурации"""
+        self.DATA: typing.Final[dict[str, int | str]] = utils.File.readJSON(self.PATH)
+        """Параметры платформы"""
+
+    def __repr__(self):
+        return f"Platform '{self.NAME}' from '{self.PATH}' data={self.DATA}"
+
+
+class ContextManager:
+
+    def __init__(self, P):
+        self.P = P
+        self.__loaded = dict[str, P]()
+        self.used: P | None = None
+
+    def load(self, path: str):
+        _l = self.P(path)
+        self.__loaded[_l.NAME] = _l
+
+    def use(self, name: str):
+        if (u := self.__loaded.get(name)) is None:
+            raise ByteLangError(f"unknown {self.P} identifier: {name}")
+
+        self.used = u
 
 
 class ByteLangCompiler:
@@ -174,8 +211,8 @@ class ByteLangCompiler:
         self.DIRECTIVE_CHAR = '.'
         self.MARK_CHAR = ':'
 
-        self.__packages = dict[str, Package]()
-        self.used_package: None | Package = None
+        self.packages = ContextManager(Package)
+        self.platforms = ContextManager(Platform)
 
     def tokenize(self, source) -> list[Statement]:
         buffer = list()
@@ -195,7 +232,7 @@ class ByteLangCompiler:
                     lexeme = lexeme[1:]
                     _type = StatementType.DIRECTIVE
 
-                elif lexeme in self.used_package.instructions.keys():  # command exists
+                elif lexeme in self.packages.used.INSTRUCTIONS.keys():  # command exists
                     _type = StatementType.INSTRUCTION
 
                 else:
@@ -205,19 +242,15 @@ class ByteLangCompiler:
 
         return buffer
 
-    def addPackage(self, package_path: str):
-        package = Package(package_path)
-        self.__packages[package.name] = package
-
-    def usePackage(self, name: str):
-        if (u := self.__packages.get(name)) is None:
-            raise ByteLangError(f"unknown instructions package: {name}")
-
-        self.used_package = u
+    def parse(self, statements: list[Statement]):
+        pass
 
     def execute(self, input_path: str, output_path: str):
-        if self.used_package is None:
+        if self.packages.used is None:
             raise ByteLangError("need to select package")
+
+        if self.platforms.used is None:
+            raise ByteLangError("need to select platform")
 
         source = utils.File.read(input_path)
 

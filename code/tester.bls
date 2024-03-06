@@ -1,0 +1,12 @@
+.use test
+.platform test
+
+.heap 2
+
+.ptr u8 A 1
+
+main:
+
+exit 0
+
+
