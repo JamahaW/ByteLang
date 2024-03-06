@@ -1,8 +1,8 @@
-import bytelang
+from bytelang import bytelang5, utils, errors
 
 
 def main():
-    compiler = bytelang.bytelang5.ByteLangCompiler()
+    compiler = bytelang5.ByteLangCompiler()
 
     compiler.packages.load(r"A:\Projects\ByteLang\pack\test.blp")
     compiler.packages.use("test")
@@ -18,10 +18,10 @@ def main():
     try:
         compiler.execute(input_path, output_path)
 
-    except bytelang.errors.ByteLangError as e:
+    except errors.ByteLangError as e:
         print(e)
 
-    print(list(bytelang.utils.File.readBinary(output_path)))
+    print(list(utils.File.readBinary(output_path)))
 
     return
 
