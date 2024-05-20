@@ -1,12 +1,7 @@
-.use test
-.platform test
-
 .heap 2
 
-.ptr u8 A 1
+.ptr u8 my_var 1
+.ptr i8 abc 2
 
-main:
-
-exit 0
-
-
+.set my_var 69
+.set abc 123

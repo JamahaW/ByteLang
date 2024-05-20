@@ -1,9 +1,10 @@
+import enum
 import pathlib
-import typing
+from dataclasses import dataclass
+from typing import Final
 
 from . import utils
 from .errors import ByteLangError
-from .lex import Argument, Instruction
 
 
 class Package:
@@ -14,7 +15,7 @@ class Package:
         """Путь к пакету"""
         self.NAME: str = pathlib.Path(package_path).stem
         """Уникальный идентификатор пакета"""
-        self.INSTRUCTIONS: typing.Final[dict[str, Instruction]] = self.__loadInstructions()
+        self.INSTRUCTIONS: Final[dict[str, Instruction]] = self.__loadInstructions()
         """Набор инструкций"""
 
     def __repr__(self):
@@ -54,19 +55,28 @@ class Package:
 class Platform:
     """Характеристики платформы"""
 
+    @dataclass(frozen=True, kw_only=True)
+    class __Params:
+        info: str
+        prog_len: int
+        ptr_prog: int
+        ptr_heap: int
+        ptr_inst: int
+
     def __init__(self, json_path: str):
-        self.PATH: typing.Final[str] = json_path
+        self.PATH: Final[str] = json_path
         """путь к конфигурации платформы"""
-        self.NAME: typing.Final[str] = pathlib.Path(json_path).stem
+        self.NAME: Final[str] = pathlib.Path(json_path).stem
         """имя конфигурации"""
-        self.DATA: typing.Final[dict[str, int | str]] = utils.File.readJSON(self.PATH)
+
+        self.DATA: Final[Platform.__Params] = Platform.__Params(**utils.File.readJSON(self.PATH))
         """Параметры платформы"""
 
     def __repr__(self):
         return f"Platform '{self.NAME}' from '{self.PATH}' data={self.DATA}"
 
 
-class ContextManager:
+class ContextLoader:
     """Менеджер загрузки контекста"""
 
     def __init__(self, P):
@@ -83,3 +93,73 @@ class ContextManager:
             raise ByteLangError(f"unknown {self.P} identifier: {name}")
 
         self.used = u
+
+
+class StatementType(enum.Enum):
+    DIRECTIVE = enum.auto()
+    MARK = enum.auto()
+    INSTRUCTION = enum.auto()
+
+
+@dataclass(repr=False, frozen=True, eq=False)
+class Statement:
+    """Выражение"""
+
+    type: StatementType
+    lexeme: str
+    args: tuple[str, ...]
+    line: int
+
+    def __repr__(self):
+        return f"{self.type} {self.lexeme}{self.args}#{self.line}"
+
+
+class Argument:
+    """Аргумент инструкции"""
+
+    POINTER_CHAR = "*"
+
+    def __init__(self, data_type: str, is_reference: bool):
+        self.type: Final[str] = data_type
+        """Идентификатор типа аргумента"""
+
+        self.pointer: Final[bool] = is_reference
+        """Передаётся ли аргумент по указателю или значению"""
+
+        self.__string = f"{self.type}"
+
+        if self.pointer:
+            self.__string += self.POINTER_CHAR
+
+    def __repr__(self):
+        return self.__string
+
+    def getSize(self, platform: Platform) -> int:
+        return platform.DATA.ptr_heap if self.pointer else utils.Bytes.size(self.type)
+
+
+class Instruction:
+    """Инструкция"""
+
+    def __init__(self, package: str, identifier: str, index: int, signature: tuple[Argument]):
+        self.signature: Final[tuple[Argument]] = signature
+        """Сигнатура"""
+
+        self.identifier: Final[str] = identifier
+        """Уникальный строчный идентификатор инструкции"""
+
+        self.index: Final[int] = index
+        """Уникальный индекс инструкции"""
+
+        self.can_inline: Final[bool] = len(signature) > 0 and signature[-1].pointer == True
+        """Может ли последний аргумент инструкции быть поставлен по значению?"""
+
+        self.__string = f"{package}::{self.identifier}#{self.index}{self.signature}"
+
+    def __repr__(self):
+        return self.__string
+
+    def getSize(self, platform: Platform, inlined: bool) -> int:
+        """Размер скомпилированной инструкции в байтах"""
+        arg_size = sum(map(lambda x: x.getSize(platform), (x for x in (self.signature[:-1] if inlined else self.signature))))
+        return platform.DATA.ptr_inst + arg_size + platform.DATA.ptr_heap * inlined

@@ -1,3 +1,3 @@
-from .bytelang5 import *
+from .core import *
 from .errors import *
 from .utils import *

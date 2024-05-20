@@ -1,29 +1,44 @@
-from bytelang import bytelang5, utils, errors
+from typing import Iterable
+
+from bytelang import core as bl, utils
+
+
+def printIterable(i: Iterable):
+    print('\n'.join(map(str, i)))
 
 
 def main():
-    compiler = bytelang5.ByteLangCompiler()
+    env = bl.Environment()
 
-    compiler.packages.load(r"A:\Projects\ByteLang\pack\test.blp")
-    compiler.packages.use("test")
-    print(compiler.packages.used)
+    env.packages.load("A:/Projects/ByteLang/packages/test_package.blp")
+    env.packages.use("test_package")
 
-    compiler.platforms.load(r"A:\Projects\ByteLang\platforms\test.json")
-    compiler.platforms.use("test")
-    print(compiler.platforms.used)
+    env.platforms.load("A:/Projects/ByteLang/platforms/test_platform.json")
+    env.platforms.use("test_platform")
 
-    input_path: str = "A:/Projects/ByteLang/code/tester.bls"
-    output_path: str = "A:/Projects/ByteLang/code/tester.blc"
+    input_path = "../code/tester.bls"
+
+    source = utils.File.read(input_path)
 
     try:
-        compiler.execute(input_path, output_path)
+        tokeniser = bl.Tokeniser(env)
+        statements = tokeniser.run(source)
 
-    except errors.ByteLangError as e:
+        # printIterable(statements)
+
+        parser = bl.Parser(env)
+        stu = parser.run(statements)
+
+        printIterable(stu)
+        printIterable(env.program.constants.items())
+        printIterable(env.program.variables.values())
+
+        # compiler = bl.Compiler(env)
+
+    except bl.ByteLangError as e:
         print(e)
-
-    print(list(utils.File.readBinary(output_path)))
-
-    return
 
 
 main()
+
+# output_path = "../code/tester.blc"
