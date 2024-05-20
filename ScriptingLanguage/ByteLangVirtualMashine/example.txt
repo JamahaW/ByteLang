@@ -1,0 +1,5 @@
+.start 1
+
+.inline print 6969
+
+exit 12345

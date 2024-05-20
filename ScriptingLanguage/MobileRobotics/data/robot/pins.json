@@ -1,0 +1,122 @@
+{
+  "0": {
+    "index": 0,
+    "properties": [
+      "digital", "system"
+    ]
+  },
+  "1": {
+    "index": 1,
+    "properties": [
+      "digital", "system"
+    ]
+  },
+  "2": {
+    "index": 2,
+    "properties": [
+      "digital", "int"
+    ]
+  },
+  "3": {
+    "index": 3,
+    "properties": [
+      "digital", "int", "pwm"
+    ]
+  },
+  "4": {
+    "index": 4,
+    "properties": [
+      "digital"
+    ]
+  },
+  "5": {
+    "index": 5,
+    "properties": [
+      "digital", "pwm"
+    ]
+  },
+  "6": {
+    "index": 6,
+    "properties": [
+      "digital", "pwm"
+    ]
+  },
+  "7": {
+    "index": 7,
+    "properties": [
+      "digital"
+    ]
+  },
+  "8": {
+    "index": 8,
+    "properties": [
+      "digital"
+    ]
+  },
+  "9": {
+    "index": 9,
+    "properties": [
+      "digital", "pwm"
+    ]
+  },
+  "10": {
+    "index": 10,
+    "properties": [
+      "digital", "pwm"
+    ]
+  },
+  "11": {
+    "index": 11,
+    "properties": [
+      "digital", "pwm"
+    ]
+  },
+  "12": {
+    "index": 12,
+    "properties": [
+      "digital", "system"
+    ]
+  },
+  "13": {
+    "index": 13,
+    "properties": [
+      "digital", "system"
+    ]
+  },
+  "A0": {
+    "index": 14,
+    "properties": [
+      "analog"
+    ]
+  },
+  "A1": {
+    "index": 15,
+    "properties": [
+      "analog"
+    ]
+  },
+  "A2": {
+    "index": 16,
+    "properties": [
+      "analog"
+    ]
+  },
+  "A3": {
+    "index": 17,
+    "properties": [
+      "analog"
+    ]
+  },
+  "A4": {
+    "index": 18,
+    "properties": [
+      "analog", "system"
+    ]
+  },
+  "A5": {
+    "index": 19,
+    "properties": [
+      "analog", "system"
+    ]
+  }
+}

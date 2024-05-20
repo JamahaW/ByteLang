@@ -1,0 +1,15 @@
+.start 7
+
+.var V_x 1
+.var V_y 3
+.var V_z 5
+
+.set V_x 12
+.set V_y 34
+.set V_z 56
+
+print V_x
+print V_y
+print V_z
+
+exit 0

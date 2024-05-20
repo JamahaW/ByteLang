@@ -1,0 +1,11 @@
+.start 3
+
+main:
+
+.var жопа 1
+
+.set жопа 321
+
+print жопа
+
+exit 0

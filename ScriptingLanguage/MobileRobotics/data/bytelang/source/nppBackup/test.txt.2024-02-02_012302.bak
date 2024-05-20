@@ -1,0 +1,12 @@
+.start 5
+
+.var V_x 1
+.var V_y 3
+
+.set V_x 12345
+.set V_y 10101
+
+print V_x
+print V_y
+
+exit 0

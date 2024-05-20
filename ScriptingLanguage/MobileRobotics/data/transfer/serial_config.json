@@ -1,0 +1,18 @@
+{
+  "baud": 9600,
+  "final_code": 255,
+  "banned_ports": [
+    "COM1"
+  ],
+  "commands": [
+    "checker",
+    "program_get_table",
+    "program_get_data",
+    "program_erase",
+    "program_load",
+    "robot_set_line_calibrate",
+    "robot_set_config",
+    "robot_get_config",
+    "robot_set_motor_pid"
+  ]
+}

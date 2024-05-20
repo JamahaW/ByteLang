@@ -1,0 +1,22 @@
+{
+  "DEFINE_MACRO": {
+    "name": "macro",
+    "args": 2
+  },
+  "PROGRAM_START": {
+    "name": "start",
+    "args": 1
+  },
+  "INLINE_ARG": {
+    "name": "inline",
+    "args": null
+  },
+  "STATIC_SET": {
+    "name": "set",
+    "args": 2
+  },
+  "DEFINE_VAR": {
+    "name": "var",
+    "args": 2
+  }
+}

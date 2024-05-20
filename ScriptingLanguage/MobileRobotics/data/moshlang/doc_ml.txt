@@ -1,0 +1,8 @@
+exit(code) - завершение программы
+wait(time) - ожидание
+print(...) - вывод N аргументов в строчку
+set_servo(id = [LEFT | RIGHT], angle, speed=180) - установить положение указанного сервопривода
+turn(angle, dir = [CENTER | LEFT | RIGHT], speed=30) - поворот вокруг центра колёс/левого колеса/правого колеса на угол по часовой стрелке.
+turn_cross(dir = [RIGHT | LEFT], speed=30) - поворот до линии (слева, справа)
+ride(mode = [DIST | WALL | CROSS | TIME], arg, speed=30) - прямолинейное движение с заданным режимом (дистанция, до стены, до перекрёстка, по таймеру)
+line(mode = [DIST | WALL | CROSS | TIME], arg, speed=30) движение по линии (режимы те же)

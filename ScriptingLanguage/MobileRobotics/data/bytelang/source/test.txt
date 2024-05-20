@@ -1,0 +1,9 @@
+.start 3
+
+.var V_a 1
+
+.set V_a 69
+
+print V_a
+
+exit 0

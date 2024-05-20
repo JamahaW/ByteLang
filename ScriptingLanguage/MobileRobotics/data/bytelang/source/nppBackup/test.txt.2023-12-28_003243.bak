@@ -1,0 +1,15 @@
+.start 3
+
+.var V_x 1
+
+.set V_x 20
+
+F_loop:
+    print V_x
+
+    dec V_x
+
+    compare_zero V_x
+    goto_not_equals F_loop
+
+exit 0

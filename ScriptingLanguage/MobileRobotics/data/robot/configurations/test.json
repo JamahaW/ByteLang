@@ -1,0 +1,75 @@
+{
+  "calibration": {
+    "left_motor": 0,
+    "right_motor": 1,
+    "left_line_sensor": 0,
+    "right_line_sensor": 1,
+    "wheel_base": 200,
+    "wheel_size": 80,
+    "motor_pid_kp": 0,
+    "motor_pid_ki": 0,
+    "motor_pid_kd": 0,
+    "motor_pid_i_max": 0,
+    "line_kp": 0,
+    "line_kc": 0,
+    "line_kd": 0
+  },
+  "pins": {
+    "Serial": [
+      {
+        "RX": "0",
+        "TX": "1"
+      }
+    ],
+    "I2C": [
+      {
+        "SDA": "A4",
+        "SCL": "A5"
+      }
+    ],
+    "ButtonSys": [
+      {
+        "output": "12"
+      },
+      {
+        "output": "13"
+      }
+    ],
+    "Motor": [
+      {
+        "speed": "5",
+        "direction": "4",
+        "encoder": "2"
+      },
+      {
+        "speed": "6",
+        "direction": "7",
+        "encoder": "3"
+      }
+    ],
+    "LineSensor": [
+      {
+        "signal": "A0"
+      },
+      {
+        "signal": "A1"
+      }
+    ],
+    "IrDistSensor": [
+      {
+        "signal": "A2"
+      }
+    ],
+    "UsDistSensor": [
+      {
+        "trigger": "8",
+        "echo": "9"
+      }
+    ],
+    "Servo": [
+      {
+        "control": "10"
+      }
+    ]
+  }
+}

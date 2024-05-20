@@ -1,0 +1,26 @@
+static void serCMD_checker () {}
+static void serCMD_program_get_table () {}
+static void serCMD_program_get_data () {}
+static void serCMD_program_erase () {}
+static void serCMD_program_load () {}
+static void serCMD_robot_set_line_calibrate () {}
+static void serCMD_robot_set_config () {}
+static void serCMD_robot_get_config () {}
+static void serCMD_robot_set_motor_pid () {}
+
+static function_t serCommands[] {
+  serCMD_checker                  ,  // 0
+  serCMD_program_get_table        ,  // 1
+  serCMD_program_get_data         ,  // 2
+  serCMD_program_erase            ,  // 3
+  serCMD_program_load             ,  // 4
+  serCMD_robot_set_line_calibrate ,  // 5
+  serCMD_robot_set_config         ,  // 6
+  serCMD_robot_get_config         ,  // 7
+  serCMD_robot_set_motor_pid      ,  // 8
+};
+
+#define serCommands_SIZE ( sizeof(serCommands) )
+#define serCommands_LENGTH ( sizeof(serCommands) / sizeof(function_t) )
+
+

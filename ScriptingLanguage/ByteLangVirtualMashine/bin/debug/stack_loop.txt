@@ -1,0 +1,37 @@
+.start 5
+
+
+.macro STEPS 5
+
+
+.var i 1
+.set i 0
+
+.var ret 3
+.set ret 0
+
+
+loop:
+	.inline compare i STEPS
+	
+	.inline mul ret i 11
+	push ret
+	
+	print ret
+	inc i
+goto_not_equals loop
+
+
+.inline move i 0
+
+loop2:
+	.inline compare i STEPS
+	
+	pop ret
+	
+	print ret
+	inc i
+goto_not_equals loop2
+
+
+exit 0

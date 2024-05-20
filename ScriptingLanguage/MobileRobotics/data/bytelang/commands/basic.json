@@ -1,0 +1,22 @@
+{
+  "exit": {
+    "signature": "word",
+    "inlining": false,
+    "description": "завершение программы",
+    "tested": true
+  },
+  "wait": {
+    "signature": "byte_1",
+    "description": "ожидание времени (мс)"
+  },
+  "move": {
+    "signature": "byte_2",
+    "description": "копирование значения",
+    "tested": true
+  },
+  "print": {
+    "signature": "byte_1",
+    "description": "вывод значения",
+    "tested": true
+  }
+}

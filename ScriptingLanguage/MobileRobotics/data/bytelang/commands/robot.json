@@ -1,0 +1,68 @@
+{
+  "speed_servo": {
+    "signature": "byte_1",
+    "description": "установка скорости сервоприводов"
+  },
+  "speed_motor": {
+    "signature": "byte_1",
+    "description": "установка скорости ведущих моторов"
+  },
+  "servo": {
+    "signature": "byte_2",
+    "description": "установка положения для указанного сервопривода"
+  },
+  "turn_left": {
+    "signature": "byte_1",
+    "description": "поворот вокруг левого колеса на угол"
+  },
+  "turn_right": {
+    "signature": "byte_1",
+    "description": "поворот вокруг правого колеса на угол"
+  },
+  "turn_center": {
+    "signature": "byte_1",
+    "description": "поворот вокруг центра колёс на угол"
+  },
+  "turn_cross_left": {
+    "signature": "void",
+    "inlining": false,
+    "description": "поворот влево до линии"
+  },
+  "turn_cross_right": {
+    "signature": "void",
+    "inlining": false,
+    "description": "поворот вправо до линии"
+  },
+  "ride_dist": {
+    "signature": "byte_1",
+    "description": "движение вперёд на дистанцию"
+  },
+  "ride_wall": {
+    "signature": "byte_1",
+    "description": "движение вперёд до стены на дистанции"
+  },
+  "ride_cross": {
+    "signature": "byte_1",
+    "description": "движение вперёд до указанного перекрёстка"
+  },
+  "ride_time": {
+    "signature": "byte_1",
+    "description": "движение вперёд по таймеру"
+  },
+  "line_dist": {
+    "signature": "byte_1",
+    "description": "движение по линии на дистанцию"
+  },
+  "line_wall": {
+    "signature": "byte_1",
+    "description": "движение по линии до стены на дистанции"
+  },
+  "line_cross": {
+    "signature": "byte_1",
+    "description": "движение по линии до указанного перекрёстка"
+  },
+  "line_timer": {
+    "signature": "byte_1",
+    "description": "движение по линии по таймеру"
+  }
+}

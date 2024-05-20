@@ -1,0 +1,75 @@
+# depslib dependency file v1.0
+1706916798 source:a:\projects\scriptinglanguage\bytelangvirtualmashine\main.cpp
+	<cstdint>
+	<cstdio>
+	"ByteLang.hpp"
+	"commands.hpp"
+
+1706740614 a:\projects\scriptinglanguage\bytelangvirtualmashine\bl\vector.hpp
+	<cstdint>
+	<cstring>
+
+1703948766 source:a:\projects\scriptinglanguage\bytelangvirtualmashine\bl\intepreter.cpp
+	"intepreter.hpp"
+	<conio.h>
+	<cstdio>
+
+1703948824 a:\projects\scriptinglanguage\bytelangvirtualmashine\bl\intepreter.hpp
+	<cstdint>
+	"vector.hpp"
+	"instruction.hpp"
+
+1703710432 a:\projects\scriptinglanguage\bytelangvirtualmashine\bl\instruction.hpp
+	<cstdint>
+
+1706917021 source:a:\projects\scriptinglanguage\bytelangvirtualmashine\commands.cpp
+	<cstdio>
+	"ByteLang.hpp"
+	"commands.hpp"
+
+1706916172 a:\projects\scriptinglanguage\bytelangvirtualmashine\commands.hpp
+	"ByteLang.hpp"
+
+1706915963 source:a:\projects\scriptinglanguage\bytelangvirtualmashine\bytelang.cpp
+	"ByteLang.hpp"
+
+1706916449 a:\projects\scriptinglanguage\bytelangvirtualmashine\bytelang.hpp
+	<cstdint>
+	<cstring>
+
+1706894933 source:e:\projects\scriptinglanguage\bytelangvirtualmashine\bytelang.cpp
+	"ByteLang.hpp"
+
+1706868988 e:\projects\scriptinglanguage\bytelangvirtualmashine\bytelang.hpp
+	<cstdint>
+	<cstring>
+
+1706888659 source:e:\projects\scriptinglanguage\bytelangvirtualmashine\commands.cpp
+	<cstdio>
+	"ByteLang.hpp"
+	"commands.hpp"
+
+1706888616 e:\projects\scriptinglanguage\bytelangvirtualmashine\commands.hpp
+	"ByteLang.hpp"
+
+1706896356 source:e:\projects\scriptinglanguage\bytelangvirtualmashine\main.cpp
+	<cstdint>
+	<cstdio>
+	"ByteLang.hpp"
+	"commands.hpp"
+
+1706858394 source:f:\projects\scriptinglanguage\bytelangvirtualmashine\bytelang.cpp
+	"ByteLang.hpp"
+
+1706827861 f:\projects\scriptinglanguage\bytelangvirtualmashine\bytelang.hpp
+	<cstdint>
+	<cstring>
+
+1706857987 source:f:\projects\scriptinglanguage\bytelangvirtualmashine\commands.cpp
+	<cstdio>
+	"ByteLang.hpp"
+	"commands.hpp"
+
+1706827039 f:\projects\scriptinglanguage\bytelangvirtualmashine\commands.hpp
+	"ByteLang.hpp"
+

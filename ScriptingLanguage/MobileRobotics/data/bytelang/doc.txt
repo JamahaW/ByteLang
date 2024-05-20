@@ -1,0 +1,79 @@
+Директивы компилятора:
+
+.define <имя> <значение> - указать синоним, константу и т.п. (заменяет в словах)
+.program <отступ> - указать размер кучи и отступ программы
+.set <адрес: byte> <значение: word> - установить значение области в куче во время компиляции
+.inline <команда> - указывает, что последний аргумент данной команды будет подставлен в код.
+
+Типы аргументов команд:
+   0 V - void - нет аргументов
+   1 VALUE_NAME - word - двухбайтовое число
+   2 value_name - byte - байтовый указатель на переменную в куче
+   3 ValueName - byte|word - или то или то.
+
+exit CODE     vmStop(CODE)     завершение программы
+wait Value     delay(Value)     ожидание времени (мс)
+
+goto ADDR     IP = ADDR     безусловный переход
+goto_equals ADDR     if (equals_f) IP = ADDR     переход, если равно
+goto_not_equals ADDR     if (not_equals_f) IP = ADDR     переход, если не равно
+goto_greater ADDR     if (greater_f) IP = ADDR     переход, если больше
+goto_less ADDR     if (less_f) IP = ADDR     переход, если меньше
+
+call ADDR         вызов блока
+return V         выход из блока
+
+move to_var FromValue     to_var = FromValue     копирование значения
+
+compare value_a ValueB     value_a C ValueB     сравнение значений
+compare_zero value     value C 0     сравнить с 0
+compare_one value     value C 1     сравнить с 1
+
+put_equals var     var = equals_f     получить флаг равенства
+put_not_equals var     var = not_equals_f     получить флаг не равенства
+put_greater var     var = greater_f     получить флаг больше
+put_less var     var = less_f     получить флаг меньше
+
+not var_out var_in     var_out = !(var_in)     логическое НЕ
+not2 var     var = !(var)     составное логическое НЕ
+
+and var_out var_a var_b     var_out = var_a && var_b     логическое И
+or var_out var_a var_b     var_out = var_a || var_b     логическое ИЛИ
+inc var     var = var + 1     инкремент
+dec var     var = var - 1     декремент
+
+add var_out var_a VarB     var_out = var_a + VarB     сложение
+add2 var_a_out VarB     var_a_out = var_a_out + VarB     составное сложение
+
+sub var_out var_a VarB      var_out = var_a VarB     вычитание
+sub2 var_out VarB      var_out = var_out VarB     составное вычитание
+
+mul var_out var_a VarB     var_out = var_a * VarB     умножение
+mul2 var_a_out VarB     var_a_out = var_a_out * VarB     составное умножение
+
+div var_out var_a VarB     var_out = var_a / VarB     деление
+div3 var_out var_a VarA     var_out = VarA / var_b     составное деление
+div2 var_out var_a     var_out = var_out / var_a     деление альтернативное
+
+print Value         вывод значения
+
+speed_servo Value         установка скорости сервоприводов
+speed_motor Value         установка скорости ведущих моторов
+
+servo Value ID         установка положения для указанного сервопривода
+
+turn_left Angle         поворот вокруг левого колеса на угол
+turn_right Angle         поворот вокруг правого колеса на угол
+turn_center Angle         поворот вокруг центра колёс на угол
+turn_cross_left V         поворот влево до линии
+turn_cross_right V         поворот вправо до линии
+
+ride_dist Value         движение вперёд на дистанцию
+ride_wall Value         движение вперёд до стены на дистанции
+ride_cross Value         движение вперёд до указанного перекрёстка
+ride_time Value         движение вперёд по таймеру
+
+line_dist Value         движение по линии на дистанцию
+line_wall Value         движение по линии до стены на дистанции
+line_cross Value         движение по линии до указанного перекрёстка
+line_timer Value         движение по линии по таймеру

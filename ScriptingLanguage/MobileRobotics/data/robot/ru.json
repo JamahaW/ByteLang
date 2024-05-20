@@ -1,0 +1,17 @@
+{
+  "property": {
+    "system": "Системный",
+    "int": "Прерывание",
+    "digital": "Цифровой",
+    "analog": "Аналоговый",
+    "pwm": "ШИМ"
+  },
+  "calibration": {
+    "left_motor": "левый мотор",
+    "right_motor": "правый мотор",
+    "left_line_sensor": "Левый датчик линии",
+    "right_line_sensor": "Правый датчик линии",
+    "wheel_base": "Колёсная база",
+    "wheel_size": "диаметр колеса"
+  }
+}
