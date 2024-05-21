@@ -1,7 +1,13 @@
-.heap 2
+.heap 100
 
-.ptr u8 my_var 1
-.ptr i8 abc 2
+.ptr u8 a 69
+.set a 123
 
-.set my_var 69
-.set abc 123
+start:
+
+    print a
+
+    .inline print a
+
+end:
+    exit 0

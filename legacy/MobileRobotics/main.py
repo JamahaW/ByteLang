@@ -17,7 +17,7 @@ def main():
     )
     # bytelang_compiler.generateExternalSourceCode("data/bytelang/source.h")
     # print(bytelang_compiler.getCommands())
-    path = "A:\\Projects\\ScriptingLanguage\\ByteLangVirtualMashine\\bin\\debug\\"
+    path = "A:\\Projects\\legacy\\ByteLangVirtualMashine\\bin\\debug\\"
     name = sys.argv[-1]
     try:
         program = bytelang_compiler.compile(

@@ -60,7 +60,7 @@ class File:
         lines = cls.read(filepath).split("\n")
 
         for line in lines:
-            line = line.strip()
+            line = line.split("#")[0].strip()
 
             if line == "":
                 continue
@@ -93,6 +93,31 @@ class Bytes:
         "i64": (-9223372036854775808, 9223372036854775807),
         "u64": (0, 18446744073709551615),
     }
+
+    __TYPE_IDS = {
+        "char": 0x0,
+        "bool": 0x1,
+        "i8": 0x2,
+        "u8": 0x3,
+        "i16": 0x4,
+        "u16": 0x5,
+        "i32": 0x6,
+        "u32": 0x7,
+        "i64": 0x8,
+        "u64": 0x9,
+        "f32": 0xA,
+        "f64": 0xB
+    }
+
+    @staticmethod
+    def int(width_bytes: int, unsigned: bool = True) -> str:
+        return f"{'u' if unsigned else 'i'}{width_bytes * 8}"
+
+    @classmethod
+    def typeID(cls, _type: str) -> int:
+        if (ret := cls.__TYPE_IDS.get(_type)) is not None:
+            return ret
+        raise ValueError(f"{_type} has not ID")
 
     @classmethod
     def typeRange(cls, _type: str) -> tuple[int, int]:

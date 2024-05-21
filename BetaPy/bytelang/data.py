@@ -154,12 +154,15 @@ class Instruction:
         self.can_inline: Final[bool] = len(signature) > 0 and signature[-1].pointer == True
         """Может ли последний аргумент инструкции быть поставлен по значению?"""
 
-        self.__string = f"{package}::{self.identifier}#{self.index}{self.signature}"
+        self.__string = f"{package}::{self.identifier}@{self.index}{self.signature}"
 
     def __repr__(self):
         return self.__string
 
     def getSize(self, platform: Platform, inlined: bool) -> int:
         """Размер скомпилированной инструкции в байтах"""
+
         arg_size = sum(map(lambda x: x.getSize(platform), (x for x in (self.signature[:-1] if inlined else self.signature))))
-        return platform.DATA.ptr_inst + arg_size + platform.DATA.ptr_heap * inlined
+        d = utils.Bytes.size(self.signature[-1].type) * inlined
+
+        return platform.DATA.ptr_inst + arg_size + d

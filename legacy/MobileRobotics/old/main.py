@@ -4,7 +4,7 @@ import utils
 
 def main():
     serial_settings = utils.File.readJSON("../assets/data/serial.json")
-    device.SerialDevice.init(serial_settings)
+    device.SerialDevice.has_static_set(serial_settings)
     commands = device.SerialDevice.generateIndexedDict(serial_settings["commands"])
     device.SerialDevice.genereteNativeVM(commands, "../assets/data/serial_commands.txt")
     # ports = device.SerialDevice.getPortList()

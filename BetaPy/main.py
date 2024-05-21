@@ -30,10 +30,12 @@ def main():
         stu = parser.run(statements)
 
         printIterable(stu)
-        printIterable(env.program.constants.items())
-        printIterable(env.program.variables.values())
+        # printIterable(env.program.constants.items())
+        # printIterable(env.program.variables.values())
 
-        # compiler = bl.Compiler(env)
+        compiler = bl.Compiler(env)
+        prog = compiler.run(stu)
+        print(list(prog))
 
     except bl.ByteLangError as e:
         print(e)
