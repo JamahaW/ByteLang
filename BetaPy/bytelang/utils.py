@@ -76,8 +76,8 @@ class File:
         return tuple[tuple[str, tuple[str]]](ret)
 
 
-class Bytes:
-    """Упаковка и распаковка двоичных структур """
+class BytesLegacy:
+    """ [ BytesLegacy ] Упаковка и распаковка двоичных структур """
 
     __TYPES = {"char": "c", "bool": "?", "i8": "b", "u8": "B", "i16": "h", "u16": "H", "i32": "i", "u32": "I", "i64": "q", "u64": "Q", "f32": "f", "f64": "d"}
 
@@ -134,7 +134,7 @@ class Bytes:
         ret = bytes()
 
         for f, v in zip(cls.__translateTypeFormat(_format), cls.__convertTypes(_values)):
-            ret += struct.pack(f, v)
+            ret += struct.pack(f"{f}", v)
 
         return ret
 

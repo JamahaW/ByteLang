@@ -3,5 +3,6 @@
   "prog_len": 512,
   "ptr_prog": 2,
   "ptr_heap": 1,
-  "ptr_inst": 1
+  "ptr_inst": 1,
+  "ptr_type": 1
 }

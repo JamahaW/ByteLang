@@ -1,14 +1,17 @@
 .heap 16
 
-.ptr u16 a 1
-.set a 12345
+#.ptr u16 a
+#.set a 12345
 
-.ptr i16 b 4
-.set b 6969
+.ptr u64 b
+.set b 0xFF00_0000_0000_0000
+
+#.ptr u8 c
+#.set c 0x7F
 
 start:
-    print a
-
-    .inline print a
+#    print a
+#
+#    .inline print a
 end:
     exit 0

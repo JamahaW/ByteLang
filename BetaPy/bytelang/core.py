@@ -44,9 +44,13 @@ class PointerVariable:
     def __repr__(self):
         return f"({self.type}) {self.name}@{self.ptr} = {self.value}"
 
-    def pack(self) -> bytes:  # TODO кластеры переменных в куче по типам
+    def pack(self, platform: Platform) -> bytes:  # TODO кластеры переменных в куче по типам
         """Получить представление в куче"""
-        return utils.Bytes.pack("u8 " + self.type, (utils.Bytes.typeID(self.type), self.value))
+        return utils.BytesLegacy.pack(f"{utils.BytesLegacy.int(platform.DATA.ptr_type)} {self.type}", (utils.BytesLegacy.typeID(self.type), self.value))
+
+    def size(self, platform: Platform) -> int:
+        """Размер переменной в байтах"""
+        return platform.DATA.ptr_type + utils.BytesLegacy.size(self.type)
 
 
 @dataclass(init=False)
@@ -66,7 +70,7 @@ class Environment:
 
         self.DIRECTIVE = DirectiveSettings(
             SET_HEAP=DirectiveUnit("heap", 1),
-            INIT_POINTER=DirectiveUnit("ptr", 3),
+            INIT_POINTER=DirectiveUnit("ptr", 2),
             SET_POINTER=DirectiveUnit("set", 2),
             USE_INLINE=DirectiveUnit("inline", None),
             DEFINE_MACRO=DirectiveUnit("def", 2)
@@ -139,17 +143,22 @@ class StatementUnit:
             instruction_ptr_value |= (1 << (ptr_inst_bits - 1))
             sign[-1].pointer = True
 
-        heap_p = utils.Bytes.int(platform.DATA.ptr_heap)
+        heap_p = utils.BytesLegacy.int(platform.DATA.ptr_heap)
 
         arg_fmt = " ".join(map(lambda x: heap_p if x.pointer else x.type, sign))
 
-        return utils.Bytes.pack(
-            f"{utils.Bytes.int(platform.DATA.ptr_inst)} {arg_fmt}",
+        return utils.BytesLegacy.pack(
+            f"{utils.BytesLegacy.int(platform.DATA.ptr_inst)} {arg_fmt}",
             (instruction_ptr_value,) + self.args
         )
 
 
 class Parser:
+    BASES_PREF: dict[str, int] = {
+        'x': 16,
+        'o': 8,
+        'b': 2
+    }
 
     def __init__(self, environment: Environment):
         self.environment = environment
@@ -157,6 +166,8 @@ class Parser:
         self.MAX_HEAP_SIZE = 2 ** (self.environment.getPlatform().DATA.ptr_heap * 8) - 1
 
         self.mark_offset: int = 0
+        self.ptr_addr_next: int = 0
+
         self.heap_directive_used = False
 
         d = self.environment.DIRECTIVE
@@ -175,6 +186,8 @@ class Parser:
 
     def run(self, statements: Iterable[Statement]) -> Iterable[StatementUnit]:
         self.mark_offset += self.environment.getPlatform().DATA.ptr_heap
+        self.ptr_addr_next = int(self.mark_offset)
+
         ret = list[StatementUnit]()
 
         for statement in statements:
@@ -202,8 +215,15 @@ class Parser:
         if (val := self.environment.program.variables.get(arg_lexeme)) is not None:
             return val.ptr
 
+        # ничего не было найдено, возможно это число
+
+        base = 10
+
+        if len(arg_lexeme) > 2 and arg_lexeme[0] == '0' and (base := self.BASES_PREF.get(arg_lexeme[1])) is None:
+            raise ByteLangError(f"IncorrectBasePrefix: {arg_lexeme}")
+
         try:
-            return int(arg_lexeme)  # ничего не было найдено, возможно это число
+            return int(arg_lexeme, base)
 
         except ValueError as e:
             raise ByteLangError(f"NotValid value '{arg_lexeme}' error: {e}")
@@ -246,17 +266,17 @@ class Parser:
         return self.instruction(Statement(StatementType.INSTRUCTION, lexeme, args, statement.line), True)
 
     def directiveInitPointer(self, statement: Statement):
-        ptr_type, ptr_name, ptr_addr = statement.args
+        ptr_type, ptr_name = statement.args
 
-        if not utils.Bytes.typeExist(ptr_type):
+        if not utils.BytesLegacy.typeExist(ptr_type):
             self.environment.statementError("InvalidType", statement)
 
-        ptr_addr = self.getValue(ptr_addr)
+        ptr_addr = self.ptr_addr_next
 
         if ptr_addr < self.environment.getPlatform().DATA.ptr_heap:
             self.environment.statementError("AddressBeforeHeap", statement)
 
-        if (ptr_addr + utils.Bytes.size(ptr_type)) > self.environment.program.heap_size:
+        if (ptr_addr + utils.BytesLegacy.size(ptr_type)) > self.environment.program.heap_size:
             self.environment.statementError("AddressAfterHeap", statement)
 
         p_vars = self.environment.program.variables
@@ -264,7 +284,8 @@ class Parser:
         if ptr_name in p_vars:
             self.environment.statementError("RedefineVariable", statement)
 
-        p_vars[ptr_name] = PointerVariable(ptr_name, ptr_addr, ptr_type)
+        ret = p_vars[ptr_name] = PointerVariable(ptr_name, ptr_addr, ptr_type)
+        self.ptr_addr_next += ret.size(self.environment.getPlatform())
 
     def directiveSetHeap(self, statement: Statement):
         if self.heap_directive_used:
@@ -283,7 +304,7 @@ class Parser:
         if (var := self.environment.program.variables.get(name)) is None:
             self.environment.statementError("VariableNotDefined", statement)
 
-        var_min, var_max = utils.Bytes.typeRange(var.type)
+        var_min, var_max = utils.BytesLegacy.typeRange(var.type)
 
         if not (var_min <= (value := self.getValue(value)) <= var_max):
             raise self.environment.statementError(f"NotInRange[{var_min};{var_max}]", statement)
@@ -301,37 +322,36 @@ class Compiler:
         self.environment = environment
 
     def run(self, statementsUnits: Iterable[StatementUnit]) -> bytes:
-        ret = bytes()
+        ret = self.getHeap() + self.getProgram(statementsUnits)
 
-        ret += self.getHeap()
-        ret += self.getProgram(statementsUnits)
+        if (L := len(ret)) > (max_len := self.environment.getPlatform().DATA.prog_len):
+            raise ByteLangError(f"Program too long ({L}/{max_len})")
 
         return ret
 
+    def getProgram(self, statementsUnits):
+        program = bytes()
+        for unit in statementsUnits:
+            program += unit.pack(self.environment.getPlatform())
+        return program
+
     def getHeap(self):
-        if (heap_size := self.environment.program.heap_size) == 0:
-            return bytes()
 
         heap_ptr = self.environment.getPlatform().DATA.ptr_heap
+        heap_size = self.environment.program.heap_size
+        heap = utils.BytesLegacy.pack(utils.BytesLegacy.int(heap_ptr), (heap_size,))
 
-        heap = utils.Bytes.pack(utils.Bytes.int(heap_ptr), (heap_size,))
+        if heap_size == 0:
+            return heap
 
         heap += bytes(heap_size - heap_ptr)
 
         heap = list(heap)
 
         for var in self.environment.program.variables.values():
-            var_bytes = list(var.pack())
+            var_bytes = list(var.pack(self.environment.getPlatform()))
 
             for i, b in enumerate(var_bytes):
                 heap[i + var.ptr] = b
 
         return bytes(heap)
-
-    def getProgram(self, units: Iterable[StatementUnit]) -> bytes:
-        program = bytes()
-
-        for unit in units:
-            program += unit.pack(self.environment.getPlatform())
-
-        return program

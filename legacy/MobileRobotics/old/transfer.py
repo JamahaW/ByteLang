@@ -118,14 +118,14 @@ class CommunicationManager:
         if args is None:
             args = Bytes.PackList()
 
-        self.__sender.send(utils.Bytes.pack([("uint8", self.__sender.getCode(command)), *args]))
+        self.__sender.send(utils.BytesLegacy.pack([("uint8", self.__sender.getCode(command)), *args]))
 
     def __readCommand(self, command: str, formatting: Bytes.FormatList) -> Bytes.ValueList:
         """
         Отправить запрос на получение данных
         """
         self.__sender.sendByte(self.__sender.getCode(command))
-        return utils.Bytes.unpack(formatting, self.__sender.read(utils.Bytes.sizeof(formatting)))
+        return utils.BytesLegacy.unpack(formatting, self.__sender.read(utils.BytesLegacy.sizeof(formatting)))
 
     def checker(self, v3: float):
         """checker"""
@@ -150,7 +150,7 @@ class CommunicationManager:
     def loadProgram(self, program_item: int, program_data: bytes):
         """program_load"""
 
-        data = utils.Bytes.pack(
+        data = utils.BytesLegacy.pack(
             [("uint8", self.__sender.getCode("program_load")), ("uint8", program_item), ("uint16", len(program_data))])
 
         self.__sender.send(data + program_data)

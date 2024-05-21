@@ -31,7 +31,7 @@ class Package:
                 arg = arg[:-1]
                 ref = True
 
-            if not utils.Bytes.typeExist(arg):
+            if not utils.BytesLegacy.typeExist(arg):
                 raise ByteLangError(f"Error in package '{self.PATH}', Instruction '{identifier}{args}', at arg: {arg_i} unknown type: '{arg}'")
 
             signature.append(Argument(arg, ref))
@@ -55,13 +55,14 @@ class Package:
 class Platform:
     """Характеристики платформы"""
 
-    @dataclass(frozen=True, kw_only=True)
+    @dataclass(frozen=True, kw_only=True, eq=False, order=False)
     class __Params:
         info: str
         prog_len: int
         ptr_prog: int
         ptr_heap: int
         ptr_inst: int
+        ptr_type: int
 
     def __init__(self, json_path: str):
         self.PATH: Final[str] = json_path
@@ -135,7 +136,7 @@ class Argument:
         return self.__string
 
     def getSize(self, platform: Platform) -> int:
-        return platform.DATA.ptr_heap if self.pointer else utils.Bytes.size(self.type)
+        return platform.DATA.ptr_heap if self.pointer else utils.BytesLegacy.size(self.type)
 
 
 class Instruction:
@@ -163,6 +164,6 @@ class Instruction:
         """Размер скомпилированной инструкции в байтах"""
 
         arg_size = sum(map(lambda x: x.getSize(platform), (x for x in (self.signature[:-1] if inlined else self.signature))))
-        d = utils.Bytes.size(self.signature[-1].type) * inlined
+        d = utils.BytesLegacy.size(self.signature[-1].type) * inlined
 
         return platform.DATA.ptr_inst + arg_size + d

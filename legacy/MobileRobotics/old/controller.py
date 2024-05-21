@@ -25,19 +25,19 @@ class BasicController:
         Отправить команду с данными (или без)
         """
         if args is None:
-            args = list[utils.Bytes.FormatType, utils.Bytes.ValueType]()
+            args = list[utils.BytesLegacy.FormatType, utils.BytesLegacy.ValueType]()
 
-        self.__sender.send(utils.Bytes.pack([
+        self.__sender.send(utils.BytesLegacy.pack([
             ("uint8", code),
             *args
         ]))
 
-    def _readCommand(self, code: int, formatting: list[utils.Bytes.FormatType]) -> list[utils.Bytes.ValueType]:
+    def _readCommand(self, code: int, formatting: list[utils.BytesLegacy.FormatType]) -> list[utils.BytesLegacy.ValueType]:
         """
         Отправить запрос на получение данных
         """
         self.__sender.sendByte(code)
-        return utils.Bytes.unpack(formatting, self.__sender.read(utils.Bytes.sizeof(formatting)))
+        return utils.BytesLegacy.unpack(formatting, self.__sender.read(utils.BytesLegacy.sizeof(formatting)))
 
 
 class TesterController(BasicController):

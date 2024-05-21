@@ -59,11 +59,11 @@ class MotorController:
         self.__last_target_speed = 0
     
     def set_pid(self, kp: float, ki: float, kd: float):
-        self.__sender.send(utils.Bytes.pack([("uint8", MotorProtocol.SEND_PID), ("float", kp), ("float", ki), ("float", kd)]))
+        self.__sender.send(utils.BytesLegacy.pack([("uint8", MotorProtocol.SEND_PID), ("float", kp), ("float", ki), ("float", kd)]))
     
     def get_speed(self) -> float:
         self.__sender.sendByte(MotorProtocol.GET_CURRENT_SPEED)
-        data = utils.Bytes.unpack(["float"], self.__sender.read(4))[0]
+        data = utils.BytesLegacy.unpack(["float"], self.__sender.read(4))[0]
         
         return data
     
@@ -72,10 +72,10 @@ class MotorController:
     
     def set_speed(self, speed: float):
         self.__last_target_speed = speed
-        self.__sender.send(utils.Bytes.pack([("uint8", MotorProtocol.SET_TARGET_SPEED), ("float", speed)]))
+        self.__sender.send(utils.BytesLegacy.pack([("uint8", MotorProtocol.SET_TARGET_SPEED), ("float", speed)]))
     
     def set_reverse(self, reverse: bool):
-        self.__sender.send(utils.Bytes.pack([("uint8", MotorProtocol.SET_REVERSE), ("bool", reverse)]))
+        self.__sender.send(utils.BytesLegacy.pack([("uint8", MotorProtocol.SET_REVERSE), ("bool", reverse)]))
 
 
 Vector2 = tuple[float, float]
