@@ -44,9 +44,9 @@ class PointerVariable:
     def __repr__(self):
         return f"({self.type}) {self.name}@{self.ptr} = {self.value}"
 
-    def pack(self) -> bytes:
+    def pack(self) -> bytes:  # TODO кластеры переменных в куче по типам
         """Получить представление в куче"""
-        return utils.Bytes.pack(f"u8 {self.type}", (utils.Bytes.typeID(self.type), self.value))
+        return utils.Bytes.pack("u8 " + self.type, (utils.Bytes.typeID(self.type), self.value))
 
 
 @dataclass(init=False)
@@ -303,22 +303,30 @@ class Compiler:
     def run(self, statementsUnits: Iterable[StatementUnit]) -> bytes:
         ret = bytes()
 
-        # ret += self.getHeap()
-
+        ret += self.getHeap()
         ret += self.getProgram(statementsUnits)
 
         return ret
 
     def getHeap(self):
-        heap = bytes()
-        if (heap_size := self.environment.program.heap_size) > 0:
-            heap += utils.Bytes.pack(f"u{8 * self.environment.getPlatform().DATA.ptr_heap}", (heap_size,))
+        if (heap_size := self.environment.program.heap_size) == 0:
+            return bytes()
 
-            pass
+        heap_ptr = self.environment.getPlatform().DATA.ptr_heap
 
-            for variable in self.environment.program.variables:
-                pass
-        return heap
+        heap = utils.Bytes.pack(utils.Bytes.int(heap_ptr), (heap_size,))
+
+        heap += bytes(heap_size - heap_ptr)
+
+        heap = list(heap)
+
+        for var in self.environment.program.variables.values():
+            var_bytes = list(var.pack())
+
+            for i, b in enumerate(var_bytes):
+                heap[i + var.ptr] = b
+
+        return bytes(heap)
 
     def getProgram(self, units: Iterable[StatementUnit]) -> bytes:
         program = bytes()

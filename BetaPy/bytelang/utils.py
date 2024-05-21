@@ -131,7 +131,12 @@ class Bytes:
 
     @classmethod
     def pack(cls, _format: str, _values: tuple) -> bytes:
-        return struct.pack(cls.__translateTypeFormat(_format), *cls.__convertTypes(_values))
+        ret = bytes()
+
+        for f, v in zip(cls.__translateTypeFormat(_format), cls.__convertTypes(_values)):
+            ret += struct.pack(f, v)
+
+        return ret
 
     @classmethod
     def unpack(cls, _format: str, _data: bytes) -> tuple:

@@ -1,13 +1,14 @@
-.heap 100
+.heap 16
 
-.ptr u8 a 69
-.set a 123
+.ptr u16 a 1
+.set a 12345
+
+.ptr i16 b 4
+.set b 6969
 
 start:
-
     print a
 
     .inline print a
-
 end:
     exit 0
