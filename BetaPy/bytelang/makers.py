@@ -1,13 +1,14 @@
 from __future__ import annotations
 
+import struct
 from dataclasses import dataclass
 from typing import Iterable, Optional, Callable
 
-from . import primitives
 from .data import Package, Platform, Argument, PointerVariable, InstructionUnit
 from .errors import ByteLangError, LexicalError, CodeGenerationError, CompileError
 from .loaders import PackageLoader, PlatformLoader
 from .mini import StatementType, Statement
+from .primitives import PrimitiveCollection
 
 
 class Environment:
@@ -19,10 +20,10 @@ class Environment:
 
     @dataclass(init=False)
     class ProgramData:
-        heap_size: int = 0
+        heap_head_value: int = 0
         constants = dict[str, int | str]()
         variables = dict[str, PointerVariable]()
-        addr_vars = dict[int, PointerVariable]()
+        addr_vars = dict[bytes, PointerVariable]()
 
     def __init__(self, packages: PackageLoader, platforms: PlatformLoader):
         self.packages = packages
@@ -122,19 +123,16 @@ class CodeGenerator:
 
         self.__env.program.constants[statement.lexeme] = self.__mark_offset
 
-    def getValue(self, arg_lexeme: str) -> int:
+    def getValue(self, arg_lexeme: str, arg_type: Argument) -> bytes:
         """Получить значение из лексемы"""
-
-        if isinstance(arg_lexeme, int):
-            return arg_lexeme
 
         # данное значение найдено среди констант
         if (val := self.__env.program.constants.get(arg_lexeme)) is not None:
-            return self.getValue(val)
+            return self.getValue(val, arg_type)
 
         # если указатель - возвращаем адрес
         if (val := self.__env.program.variables.get(arg_lexeme)) is not None:
-            return val.ptr
+            return arg_type.toBytes(self.__env.getPlatform(), val.ptr)
 
         # ничего не было найдено, возможно это число
 
@@ -144,7 +142,7 @@ class CodeGenerator:
             raise CodeGenerationError(f"IncorrectBasePrefix: {arg_lexeme}")
 
         try:
-            return int(arg_lexeme, base)
+            return arg_type.toBytes(self.__env.getPlatform(), int(arg_lexeme, base))
 
         except ValueError as e:
             raise CodeGenerationError(f"NotValid value '{arg_lexeme}' error: {e}")
@@ -165,11 +163,11 @@ class CodeGenerator:
 
         return InstructionUnit(instruction, self.instructionValidateArg(statement, instruction.signature, inline_last), inline_last)
 
-    def instructionValidateArg(self, statement: Statement, signature: tuple[Argument, ...], inline: bool) -> tuple[int, ...]:
-        ret = list[int]()
+    def instructionValidateArg(self, statement: Statement, signature: tuple[Argument, ...], inline: bool) -> tuple[bytes, ...]:
+        ret = list[bytes]()
 
         for index, (arg_type, arg_value) in enumerate(zip(signature, statement.args)):
-            arg_value = self.getValue(arg_value)
+            arg_value = self.getValue(arg_value, arg_type)
             if not inline and arg_type.pointer and arg_value not in self.__env.program.addr_vars.keys():
                 raise CodeGenerationError(f'ParsingError{"AddrError"} : {statement}')
 
@@ -216,7 +214,7 @@ class CodeGenerator:
     def directiveInitPointer(self, statement: Statement):
         ptr_type, ptr_name, ptr_value = statement.args
 
-        if (ptr_type := primitives.Collection.get(ptr_type)) is None:
+        if (ptr_type := PrimitiveCollection.get(ptr_type)) is None:
             raise CodeGenerationError(f'ParsingError"InvalidType" : {statement}')
 
         ptr_addr = self.__ptr_addr_next
@@ -224,19 +222,21 @@ class CodeGenerator:
         if ptr_addr < self.__env.getPlatform().HEAP_PTR.size:
             raise CodeGenerationError(f'ParsingError"AddressBeforeHeap" : {statement}')
 
-        if (ptr_addr + ptr_type.size) > self.__env.program.heap_size:
-            raise CodeGenerationError(f'ParsingError"AddressAfterHeap" : {statement}')
+        # if (ptr_addr + ptr_type.size) > self.__env.program.heap_head_value:
+        #     raise CodeGenerationError(f'ParsingError"AddressAfterHeap" : {statement}')
 
         p_vars = self.__env.program.variables
 
         if ptr_name in p_vars:
             raise CodeGenerationError(f'ParsingError"RedefineVariable" : {statement}')
 
-        if not (ptr_type.min <= (ptr_value := self.getValue(ptr_value)) <= ptr_type.max):
-            raise CodeGenerationError(f'ParsingErrorNotInRange[{ptr_type.min};{ptr_type.max}] : {statement}')
+        ptr_value = self.getValue(ptr_value, Argument(self.__env.getPlatform().HEAP_PTR, False))
+
+        # if not (ptr_type.min <= ptr_value <= ptr_type.max):
+        #     raise CodeGenerationError(f'ParsingErrorNotInRange[{ptr_type.min};{ptr_type.max}] : {statement}')
 
         ret = p_vars[ptr_name] = PointerVariable(ptr_name, ptr_addr, ptr_type, ptr_value)
-        self.__env.program.addr_vars[ptr_addr] = ret
+        self.__env.program.addr_vars[self.__env.getPlatform().HEAP_PTR.toBytes(ptr_addr)] = ret
         self.__ptr_addr_next += ret.getSize(self.__env.getPlatform())
 
     def directiveSetHeap(self, statement: Statement):
@@ -244,11 +244,12 @@ class CodeGenerator:
             raise CodeGenerationError(f'ParsingError"ReinitHeap" : {statement}')
 
         self.__used_heap_directive = True
-        h = self.__env.program.heap_size = self.getValue(statement.args[0])
+        self.__env.program.heap_head_value = self.getValue(statement.args[0], Argument(self.__env.getPlatform().HEAP_PTR, False))
+        h = int(statement.args[0])  # TODO FIXME
         self.__mark_offset += h
 
-        if not (0 < h < self.__env.getPlatform().HEAP_PTR.max):
-            raise CodeGenerationError(f'ParsingError"InvalidHeapSize" : {statement}')
+        # if not (0 < h < self.__env.getPlatform().HEAP_PTR.max):
+        #     raise CodeGenerationError(f'ParsingError"InvalidHeapSize" : {statement}')
 
 
 class ProgramGenerator:
@@ -272,9 +273,11 @@ class ProgramGenerator:
         return program
 
     def __getHeap(self):
-        ptr_size = self.environment.getPlatform().HEAP_PTR.size
-        size = self.environment.program.heap_size
-        heap_data = primitives.Collection.pointer(ptr_size).toBytes(size + ptr_size)
+        h_ptr = self.environment.getPlatform().HEAP_PTR
+        ptr_size = h_ptr.size
+        size = self.environment.program.heap_head_value
+        size = struct.unpack(h_ptr.format, size)[0]
+        heap_data = PrimitiveCollection.pointer(ptr_size).toBytes(size + ptr_size)
 
         if size == 0:
             return heap_data

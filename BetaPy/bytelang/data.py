@@ -4,8 +4,9 @@ import pathlib
 from dataclasses import dataclass
 from typing import Final
 
-from . import utils, primitives
 from .errors import ByteLangError
+from .primitives import PrimitiveCollection, PrimitiveType
+from .utils import File
 
 
 class Package:
@@ -24,14 +25,14 @@ class Package:
 
     def __prepareArgument(self, i_arg, name) -> Argument:
         i, arg = i_arg
-        if (datatype := primitives.Collection.get(arg.rstrip(primitives.Type.POINTER_CHAR))) is not None:
-            return Argument(datatype, primitives.Type.POINTER_CHAR == arg[-1])
+        if (datatype := PrimitiveCollection.get(arg.rstrip(PrimitiveType.POINTER_CHAR))) is not None:
+            return Argument(datatype, PrimitiveType.POINTER_CHAR == arg[-1])
         raise ByteLangError(f"Error in package '{self.PATH}', Instruction '{name}', at arg: {i} unknown type: '{arg}'")
 
     def __loadInstructions(self):
         return {
             name: Instruction(self.NAME, name, index, tuple(self.__prepareArgument(i_arg, name) for i_arg in enumerate(signature)))
-            for index, (name, signature) in enumerate(utils.File.readPackage(self.PATH))
+            for index, (name, signature) in enumerate(File.readPackage(self.PATH))
         }
 
 
@@ -53,15 +54,15 @@ class Platform:
         self.NAME: Final[str] = pathlib.Path(json_path).stem
         """имя конфигурации"""
 
-        data: Final[Platform.__Params] = Platform.__Params(**utils.File.readJSON(self.PATH))
+        data: Final[Platform.__Params] = Platform.__Params(**File.readJSON(self.PATH))
 
-        self.HEAP_PTR = primitives.Collection.pointer(data.ptr_heap)
+        self.HEAP_PTR = PrimitiveCollection.pointer(data.ptr_heap)
         """Указатель кучи"""
-        self.PROG_PTR = primitives.Collection.pointer(data.ptr_prog)
+        self.PROG_PTR = PrimitiveCollection.pointer(data.ptr_prog)
         """Указатель в программе"""
-        self.INST_PTR = primitives.Collection.pointer(data.ptr_inst)
+        self.INST_PTR = PrimitiveCollection.pointer(data.ptr_inst)
         """Указатель в таблице инструкций"""
-        self.TYPE_PTR = primitives.Collection.pointer(data.ptr_type)
+        self.TYPE_PTR = PrimitiveCollection.pointer(data.ptr_type)
         """Маркер типа переменной из кучи"""
         self.PROGRAM_LEN = data.prog_len
         """Максимальный размер программы"""
@@ -74,17 +75,20 @@ class Platform:
 class Argument:
     """Аргумент инструкции"""
 
-    datatype: primitives.Type
+    datatype: PrimitiveType
     """Тип данных аргумента"""
 
     pointer: bool
     """Является указателем"""
 
     def __repr__(self):
-        return self.datatype.__str__() + primitives.Type.POINTER_CHAR if self.pointer else ''
+        return self.datatype.__str__() + PrimitiveType.POINTER_CHAR if self.pointer else ''
 
     def getSize(self, platform: Platform) -> int:
         return (platform.HEAP_PTR if self.pointer else self.datatype).size
+
+    def toBytes(self, platform: Platform, value: int) -> bytes:
+        return (platform.HEAP_PTR if self.pointer else self.datatype).toBytes(value)
 
 
 class Instruction:
@@ -119,18 +123,18 @@ class Instruction:
 
 
 class PointerVariable:
-    def __init__(self, name: str, heap_ptr: int, _type: primitives.Type, value: int):
+    def __init__(self, name: str, heap_ptr: int, _type: PrimitiveType, value: bytes):
         self.name = name
         self.ptr = heap_ptr
         self.type = _type
         self.value = value
 
     def __repr__(self):
-        return f"({self.type}) {self.name}@{self.ptr} = {self.value}"
+        return f"({self.type}) {self.name}@{self.ptr} = {self.value.hex()}"
 
     def toBytes(self, platform: Platform) -> bytes:  # TODO кластеры переменных в куче по типам
         """Получить представление в куче"""
-        return platform.TYPE_PTR.toBytes(self.type.id) + self.type.toBytes(self.value)
+        return platform.TYPE_PTR.toBytes(self.type.id) + self.value
 
     def getSize(self, platform: Platform) -> int:
         """Размер переменной в байтах"""
@@ -140,7 +144,7 @@ class PointerVariable:
 @dataclass(frozen=True)
 class InstructionUnit:
     instruction: Instruction
-    args: tuple[int, ...]
+    args: tuple[bytes, ...]
     inline_last: bool
 
     def toBytes(self, platform: Platform) -> bytes:
@@ -154,7 +158,7 @@ class InstructionUnit:
 
         res = platform.INST_PTR.toBytes(instruction_ptr_value)
 
-        for arg_t, arg_v in zip(sign, self.args):
-            res += (platform.HEAP_PTR if arg_t.pointer else arg_t.datatype).toBytes(arg_v)
+        for arg_v in self.args:
+            res += arg_v
 
         return res

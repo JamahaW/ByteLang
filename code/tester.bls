@@ -1,7 +1,7 @@
 .platform test_platform
 .package stdpack
 
-.def A 123
+.def A 0xFF
 
 .heap 3
 
