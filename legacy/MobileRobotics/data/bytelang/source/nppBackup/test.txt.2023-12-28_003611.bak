@@ -1,3 +1,0 @@
-.start 1
-.inline print V_x 12345
-exit 0

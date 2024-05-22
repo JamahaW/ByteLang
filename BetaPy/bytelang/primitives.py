@@ -4,8 +4,10 @@ import struct
 from typing import Final
 
 
-class PrimitiveType:
+class Type:
     """Примитивный тип данных"""
+
+    POINTER_CHAR = "*"
 
     def __init__(self, name: str, _format: str, _id: int, signed: bool):
         if not name:
@@ -33,32 +35,35 @@ class PrimitiveType:
     def __repr__(self):
         return f"Primitive({self.name})@{self.id}({self.size}) -> {self.format} [{self.min}; {self.max}]"
 
+    def __str__(self):
+        return self.name
+
     def toBytes(self, value: int) -> bytes:
         return self.__packer.pack(value)
 
 
-class PrimitiveData:
-    BOOL = PrimitiveType("bool", '?', 0x1, False)
-    INT8 = PrimitiveType("i8", 'b', 0x2, True)
-    UINT8 = PrimitiveType("u8", 'B', 0x3, False)
-    INT16 = PrimitiveType('i16', 'h', 0x4, True)
-    UINT16 = PrimitiveType('u16', 'H', 0x5, False)
-    INT32 = PrimitiveType('i32', 'i', 0x6, True)
-    UINT32 = PrimitiveType('u32', 'I', 0x7, False)
-    INT64 = PrimitiveType('i64', 'q', 0x8, True)
-    UINT64 = PrimitiveType('u64', 'Q', 0x9, False)
-    FLOAT32 = PrimitiveType('f32', 'f', 0xA, True)
-    FLOAT64 = PrimitiveType('f64', 'd', 0xB, True)
+class Collection:
+    """Набор примитивных типов"""
+
+    BOOL = Type("bool", '?', 0x1, False)
+    INT8 = Type("i8", 'b', 0x2, True)
+    UINT8 = Type("u8", 'B', 0x3, False)
+    INT16 = Type('i16', 'h', 0x4, True)
+    UINT16 = Type('u16', 'H', 0x5, False)
+    INT32 = Type('i32', 'i', 0x6, True)
+    UINT32 = Type('u32', 'I', 0x7, False)
+    INT64 = Type('i64', 'q', 0x8, True)
+    UINT64 = Type('u64', 'Q', 0x9, False)
+    FLOAT32 = Type('f32', 'f', 0xA, True)
+    FLOAT64 = Type('f64', 'd', 0xB, True)
 
     PRIMITIVES = {"char": None, "bool": BOOL, "i8": INT8, "u8": UINT8, "i16": INT16, "u16": UINT16, "i32": INT32, "u32": UINT32, "i64": INT64, "u64": UINT64, "f32": FLOAT32, "f64": FLOAT64}
 
     @classmethod
-    def get(cls, typename: str) -> PrimitiveType:
+    def get(cls, typename: str) -> Type:
         """Получить экземпляр примитивного типа по идентификатору"""
-        if (ret := cls.PRIMITIVES.get(typename)) is None:
-            raise KeyError(f"Unknown Primitive typename: {typename}")
-        return ret
+        return cls.PRIMITIVES.get(typename)
 
-
-if __name__ == "__main__":
-    print(PrimitiveData.PRIMITIVES)
+    @classmethod
+    def pointer(cls, width: int) -> Type:
+        return cls.PRIMITIVES.get(f"u{width * 8}")

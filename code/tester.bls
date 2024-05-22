@@ -1,17 +1,18 @@
-.heap 16
+.heap 6
 
-#.ptr u16 a
-#.set a 12345
+.ptr u16 x
+.ptr u16 y
+.set y 0xFFFF
 
-.ptr u64 b
-.set b 0xFF00_0000_0000_0000
+loop:
 
-#.ptr u8 c
-#.set c 0x7F
+    inc x
+    print x
 
-start:
-#    print a
-#
-#    .inline print a
-end:
-    exit 0
+    dec y
+    print y
+
+    .inline delay 15
+
+    goto loop
+

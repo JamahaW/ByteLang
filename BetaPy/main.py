@@ -1,6 +1,6 @@
 from typing import Iterable
 
-from bytelang import core as bl, utils
+from bytelang import makers as bl, utils
 
 
 def printIterable(i: Iterable):
@@ -11,7 +11,8 @@ def main():
     env = bl.Environment()
 
     env.packages.load("A:/Projects/ByteLang/packages/test_package.blp")
-    env.packages.use("test_package")
+    env.packages.load("A:/Projects/ByteLang/packages/stdpack.blp")
+    env.packages.use("stdpack")
 
     env.platforms.load("A:/Projects/ByteLang/platforms/test_platform.json")
     env.platforms.use("test_platform")

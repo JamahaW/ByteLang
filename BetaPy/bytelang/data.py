@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 import enum
 import pathlib
 from dataclasses import dataclass
 from typing import Final
 
-from . import utils
+from . import utils, primitives
 from .errors import ByteLangError
 
 
@@ -21,34 +23,16 @@ class Package:
     def __repr__(self):
         return f"Package '{self.NAME}' from '{self.PATH}' instructions: {self.INSTRUCTIONS}"
 
-    def __parseInstruction(self, identifier, args):
-        signature = list[Argument]()
-
-        for arg_i, arg in enumerate(args):
-            ref = False
-
-            if Argument.POINTER_CHAR == arg[-1]:
-                arg = arg[:-1]
-                ref = True
-
-            if not utils.BytesLegacy.typeExist(arg):
-                raise ByteLangError(f"Error in package '{self.PATH}', Instruction '{identifier}{args}', at arg: {arg_i} unknown type: '{arg}'")
-
-            signature.append(Argument(arg, ref))
-
-        return tuple[Argument](signature)
+    def __prepareArgument(self, i_arg, name) -> Argument:
+        i, arg = i_arg
+        if (datatype := primitives.Collection.get(arg.rstrip(primitives.Type.POINTER_CHAR))) is not None:
+            return Argument(datatype, primitives.Type.POINTER_CHAR == arg[-1])
+        raise ByteLangError(f"Error in package '{self.PATH}', Instruction '{name}', at arg: {i} unknown type: '{arg}'")
 
     def __loadInstructions(self):
-        package_values = utils.File.readPackage(self.PATH)
-
         return {
-            identifier: Instruction(
-                self.NAME,
-                identifier,
-                index,
-                self.__parseInstruction(identifier, signature)
-            )
-            for index, (identifier, signature) in enumerate(package_values)
+            name: Instruction(self.NAME, name, index, tuple(self.__prepareArgument(i_arg, name) for i_arg in enumerate(signature)))
+            for index, (name, signature) in enumerate(utils.File.readPackage(self.PATH))
         }
 
 
@@ -69,9 +53,16 @@ class Platform:
         """путь к конфигурации платформы"""
         self.NAME: Final[str] = pathlib.Path(json_path).stem
         """имя конфигурации"""
-
         self.DATA: Final[Platform.__Params] = Platform.__Params(**utils.File.readJSON(self.PATH))
         """Параметры платформы"""
+        self.HEAP_PTR = primitives.Collection.pointer(self.DATA.ptr_heap)
+        """Указатель кучи"""
+        self.PROG_PTR = primitives.Collection.pointer(self.DATA.ptr_prog)
+        """Указатель в программе"""
+        self.INST_PTR = primitives.Collection.pointer(self.DATA.ptr_inst)
+        """Указатель в таблице инструкций"""
+        self.TYPE_PTR = primitives.Collection.pointer(self.DATA.ptr_type)
+        """Маркер типа переменной из кучи"""
 
     def __repr__(self):
         return f"Platform '{self.NAME}' from '{self.PATH}' data={self.DATA}"
@@ -80,20 +71,19 @@ class Platform:
 class ContextLoader:
     """Менеджер загрузки контекста"""
 
-    def __init__(self, P):
-        self.P = P
-        self.__loaded = dict[str, P]()
-        self.used: P | None = None
+    def __init__(self, T):
+        self.T = T
+        self.__loaded = dict[str, T]()
+        self.used: T | None = None
 
     def load(self, path: str):
-        _l = self.P(path)
+        _l = self.T(path)
         self.__loaded[_l.NAME] = _l
 
     def use(self, name: str):
-        if (u := self.__loaded.get(name)) is None:
-            raise ByteLangError(f"unknown {self.P} identifier: {name}")
-
-        self.used = u
+        if (used := self.__loaded.get(name)) is None:
+            raise ByteLangError(f"unknown {self.T} identifier: {name}")
+        self.used = used
 
 
 class StatementType(enum.Enum):
@@ -102,7 +92,7 @@ class StatementType(enum.Enum):
     INSTRUCTION = enum.auto()
 
 
-@dataclass(repr=False, frozen=True, eq=False)
+@dataclass(frozen=True, eq=False)
 class Statement:
     """Выражение"""
 
@@ -111,59 +101,50 @@ class Statement:
     args: tuple[str, ...]
     line: int
 
-    def __repr__(self):
-        return f"{self.type} {self.lexeme}{self.args}#{self.line}"
 
-
+@dataclass(init=True, repr=False, eq=False)
 class Argument:
     """Аргумент инструкции"""
 
-    POINTER_CHAR = "*"
+    datatype: primitives.Type
+    """Тип данных аргумента"""
 
-    def __init__(self, data_type: str, is_reference: bool):
-        self.type: Final[str] = data_type
-        """Идентификатор типа аргумента"""
-
-        self.pointer: Final[bool] = is_reference
-        """Передаётся ли аргумент по указателю или значению"""
-
-        self.__string = f"{self.type}"
-
-        if self.pointer:
-            self.__string += self.POINTER_CHAR
+    pointer: bool
+    """Является указателем"""
 
     def __repr__(self):
-        return self.__string
+        return self.datatype.__str__() + primitives.Type.POINTER_CHAR if self.pointer else ''
 
     def getSize(self, platform: Platform) -> int:
-        return platform.DATA.ptr_heap if self.pointer else utils.BytesLegacy.size(self.type)
+        return platform.DATA.ptr_heap if self.pointer else self.datatype.size
 
 
 class Instruction:
     """Инструкция"""
 
-    def __init__(self, package: str, identifier: str, index: int, signature: tuple[Argument]):
-        self.signature: Final[tuple[Argument]] = signature
+    def __init__(self, package: str, name: str, _id: int, signature: tuple[Argument, ...]):
+        self.signature: Final[tuple[Argument, ...]] = signature
         """Сигнатура"""
 
-        self.identifier: Final[str] = identifier
+        self.name: Final[str] = name
         """Уникальный строчный идентификатор инструкции"""
 
-        self.index: Final[int] = index
+        self.id: Final[int] = _id
         """Уникальный индекс инструкции"""
 
         self.can_inline: Final[bool] = len(signature) > 0 and signature[-1].pointer == True
         """Может ли последний аргумент инструкции быть поставлен по значению?"""
 
-        self.__string = f"{package}::{self.identifier}@{self.index}{self.signature}"
+        self.package = package
 
     def __repr__(self):
-        return self.__string
+        return f"{self.package}::{self.name}@{self.id}{self.signature}"
 
     def getSize(self, platform: Platform, inlined: bool) -> int:
         """Размер скомпилированной инструкции в байтах"""
 
-        arg_size = sum(map(lambda x: x.getSize(platform), (x for x in (self.signature[:-1] if inlined else self.signature))))
-        d = utils.BytesLegacy.size(self.signature[-1].type) * inlined
+        ret = platform.DATA.ptr_inst  # Указатель инструкции
+        ret += sum(arg.getSize(platform) for arg in self.signature[:-1])  # not-inline аргументы
+        ret += self.signature[-1].datatype.size * inlined  # inline аргумент
 
-        return platform.DATA.ptr_inst + arg_size + d
+        return ret

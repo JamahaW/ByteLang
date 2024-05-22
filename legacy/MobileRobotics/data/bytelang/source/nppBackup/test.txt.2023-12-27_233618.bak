@@ -1,9 +1,0 @@
-.start 3
-
-.var V_x 1
-
-.set V_x 12345
-
-print V_x
-
-exit 0
