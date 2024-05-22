@@ -1,18 +1,11 @@
-.heap 6
+.platform test_platform
+.package stdpack
 
-.ptr u16 x
-.ptr u16 y
-.set y 0xFFFF
+.heap 3
 
-loop:
+.ptr u16 x 12345
 
-    inc x
+start:
     print x
 
-    dec y
-    print y
-
-    .inline delay 15
-
-    goto loop
-
+    exit 0

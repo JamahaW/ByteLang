@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import enum
 import pathlib
 from dataclasses import dataclass
 from typing import Final
@@ -53,53 +52,22 @@ class Platform:
         """путь к конфигурации платформы"""
         self.NAME: Final[str] = pathlib.Path(json_path).stem
         """имя конфигурации"""
-        self.DATA: Final[Platform.__Params] = Platform.__Params(**utils.File.readJSON(self.PATH))
-        """Параметры платформы"""
-        self.HEAP_PTR = primitives.Collection.pointer(self.DATA.ptr_heap)
+
+        data: Final[Platform.__Params] = Platform.__Params(**utils.File.readJSON(self.PATH))
+
+        self.HEAP_PTR = primitives.Collection.pointer(data.ptr_heap)
         """Указатель кучи"""
-        self.PROG_PTR = primitives.Collection.pointer(self.DATA.ptr_prog)
+        self.PROG_PTR = primitives.Collection.pointer(data.ptr_prog)
         """Указатель в программе"""
-        self.INST_PTR = primitives.Collection.pointer(self.DATA.ptr_inst)
+        self.INST_PTR = primitives.Collection.pointer(data.ptr_inst)
         """Указатель в таблице инструкций"""
-        self.TYPE_PTR = primitives.Collection.pointer(self.DATA.ptr_type)
+        self.TYPE_PTR = primitives.Collection.pointer(data.ptr_type)
         """Маркер типа переменной из кучи"""
+        self.PROGRAM_LEN = data.prog_len
+        """Максимальный размер программы"""
 
     def __repr__(self):
-        return f"Platform '{self.NAME}' from '{self.PATH}' data={self.DATA}"
-
-
-class ContextLoader:
-    """Менеджер загрузки контекста"""
-
-    def __init__(self, T):
-        self.T = T
-        self.__loaded = dict[str, T]()
-        self.used: T | None = None
-
-    def load(self, path: str):
-        _l = self.T(path)
-        self.__loaded[_l.NAME] = _l
-
-    def use(self, name: str):
-        if (used := self.__loaded.get(name)) is None:
-            raise ByteLangError(f"unknown {self.T} identifier: {name}")
-        self.used = used
-
-
-class StatementType(enum.Enum):
-    DIRECTIVE = enum.auto()
-    MARK = enum.auto()
-    INSTRUCTION = enum.auto()
-
-
-@dataclass(frozen=True, eq=False)
-class Statement:
-    """Выражение"""
-
-    type: StatementType
-    lexeme: str
-    args: tuple[str, ...]
-    line: int
+        return f"Platform '{self.NAME}' from '{self.PATH}'"
 
 
 @dataclass(init=True, repr=False, eq=False)
@@ -116,7 +84,7 @@ class Argument:
         return self.datatype.__str__() + primitives.Type.POINTER_CHAR if self.pointer else ''
 
     def getSize(self, platform: Platform) -> int:
-        return platform.DATA.ptr_heap if self.pointer else self.datatype.size
+        return (platform.HEAP_PTR if self.pointer else self.datatype).size
 
 
 class Instruction:
@@ -143,8 +111,50 @@ class Instruction:
     def getSize(self, platform: Platform, inlined: bool) -> int:
         """Размер скомпилированной инструкции в байтах"""
 
-        ret = platform.DATA.ptr_inst  # Указатель инструкции
+        ret = platform.INST_PTR.size  # Указатель инструкции
         ret += sum(arg.getSize(platform) for arg in self.signature[:-1])  # not-inline аргументы
         ret += self.signature[-1].datatype.size * inlined  # inline аргумент
 
         return ret
+
+
+class PointerVariable:
+    def __init__(self, name: str, heap_ptr: int, _type: primitives.Type, value: int):
+        self.name = name
+        self.ptr = heap_ptr
+        self.type = _type
+        self.value = value
+
+    def __repr__(self):
+        return f"({self.type}) {self.name}@{self.ptr} = {self.value}"
+
+    def toBytes(self, platform: Platform) -> bytes:  # TODO кластеры переменных в куче по типам
+        """Получить представление в куче"""
+        return platform.TYPE_PTR.toBytes(self.type.id) + self.type.toBytes(self.value)
+
+    def getSize(self, platform: Platform) -> int:
+        """Размер переменной в байтах"""
+        return platform.TYPE_PTR.size + self.type.size
+
+
+@dataclass(frozen=True)
+class InstructionUnit:
+    instruction: Instruction
+    args: tuple[int, ...]
+    inline_last: bool
+
+    def toBytes(self, platform: Platform) -> bytes:
+        """Представление байткода"""
+        instruction_ptr_value = int(self.instruction.id)
+        sign = list(self.instruction.signature)
+
+        if self.inline_last:
+            instruction_ptr_value |= (1 << (platform.INST_PTR.size * 8 - 1))
+            sign[-1].pointer = False
+
+        res = platform.INST_PTR.toBytes(instruction_ptr_value)
+
+        for arg_t, arg_v in zip(sign, self.args):
+            res += (platform.HEAP_PTR if arg_t.pointer else arg_t.datatype).toBytes(arg_v)
+
+        return res

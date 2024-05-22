@@ -1,95 +1,41 @@
-import typing
-from dataclasses import dataclass
-from typing import Iterable
+from typing import Iterable, Optional, Callable
 
 from . import primitives
-from .data import Package, Platform, ContextLoader, StatementType, Statement, Instruction
-from .errors import ByteLangError
-
-
-@dataclass(frozen=True)
-class DirectiveUnit:
-    name: str
-    arg_count: int | None
-
-
-@dataclass(frozen=True, kw_only=True)
-class DirectiveSettings:
-    SET_HEAP: DirectiveUnit
-    SET_POINTER: DirectiveUnit
-    INIT_POINTER: DirectiveUnit
-    USE_INLINE: DirectiveUnit
-    DEFINE_MACRO: DirectiveUnit
-
-
-@dataclass(frozen=True)
-class CharSettings:
-    COMMENT: str
-    MARK: str
-    DIRECTIVE: str
-
-
-class PointerVariable:
-    def __init__(self, name: str, heap_ptr: int, _type: primitives.Type):
-        self.name = name
-        self.ptr = heap_ptr
-        self.type = _type
-        self.value = 0
-        self.has_static_set = False
-
-    def set(self, value: int):
-        self.value = value
-        self.has_static_set = True
-
-    def __repr__(self):
-        return f"({self.type}) {self.name}@{self.ptr} = {self.value}"
-
-    def toBytes(self, platform: Platform) -> bytes:  # TODO кластеры переменных в куче по типам
-        """Получить представление в куче"""
-        return primitives.Collection.get(f"u{platform.DATA.ptr_type * 8}").toBytes(self.type.id) + self.type.toBytes(self.value)
-
-    def getSize(self, platform: Platform) -> int:
-        """Размер переменной в байтах"""
-        return platform.DATA.ptr_type + self.type.size
-
-
-@dataclass(init=False)
-class ProgramData:
-    heap_size: int = 0
-    constants = dict[str, int | str]()
-    variables = dict[str, PointerVariable]()
-    addr_vars = dict[int, PointerVariable]()
+from .data import Package, Platform, Argument, PointerVariable, InstructionUnit
+from .errors import ByteLangError, LexicalError, CodeGenerationError, CompileError
+from .loaders import PackageLoader, PlatformLoader
+from .mini import StatementType, Statement, DirectiveUnit, DirectivesCollection, CharSettings, ProgramData
 
 
 class Environment:
 
-    def __init__(self):
-        self.packages = ContextLoader(Package)
-        self.platforms = ContextLoader(Platform)
-
-        self.CHAR = CharSettings('#', ':', '.')
-
-        self.DIRECTIVE = DirectiveSettings(
-            SET_HEAP=DirectiveUnit("heap", 1),
-            INIT_POINTER=DirectiveUnit("ptr", 2),
-            SET_POINTER=DirectiveUnit("set", 2),
-            USE_INLINE=DirectiveUnit("inline", None),
-            DEFINE_MACRO=DirectiveUnit("def", 2)
-        )
+    def __init__(self, packages: PackageLoader, platforms: PlatformLoader):
+        self.packages = packages
+        self.platforms = platforms
 
         self.program = ProgramData()
+        self.CHAR = CharSettings('#', ':', '.')
+        self.DIRECTIVE = DirectivesCollection(
+            SET_HEAP=DirectiveUnit("heap", 1),
+            INIT_POINTER=DirectiveUnit("ptr", 3),
+            USE_INLINE=DirectiveUnit("inline", None),
+            DEFINE_MACRO=DirectiveUnit("def", 2),
+            USE_PACKAGE=DirectiveUnit("package", 1),
+            USE_PLATFORM=DirectiveUnit("platform", 1)
+        )
 
     def getPlatform(self) -> Platform:
-        return self.platforms.used
+        return self.platforms.get()
 
     def getPackage(self) -> Package:
-        return self.packages.used
+        return self.packages.get()
 
-    def statementError(self, message: str, statement: Statement) -> None:
-        raise ByteLangError(f"[ ByteLangError ] :: {message} : {statement}")
+    def parsingError(self, message: str, statement: Statement) -> None:
+        raise CodeGenerationError(f"[ parse error ] :: {message} : {statement}")
 
 
-class Tokeniser:
+# TODO Lexical, Syntax??
+class LexicalAnalyser:
 
     def __init__(self, environment: Environment):
         self.environment = environment
@@ -115,43 +61,16 @@ class Tokeniser:
             lexeme = lexeme[1:]
             _type = StatementType.DIRECTIVE
 
-        elif lexeme in self.environment.getPackage().INSTRUCTIONS.keys():
+        elif not lexeme[0].isdigit() and lexeme.isalnum():
             _type = StatementType.INSTRUCTION
-            instruction = self.environment.getPackage().INSTRUCTIONS.get(lexeme)
-
-            if (L := len(args)) != len(instruction.signature):
-                raise ByteLangError(f"Invalid arg count for {instruction} got {source_line} ({L})")
 
         else:
-            raise ByteLangError(f"Invalid Statement: '{lexeme}' at Line {index} '{source_line}'")
+            raise LexicalError(f"Invalid Statement: '{lexeme}' at Line {index}\n'{source_line}'")
 
-        return Statement(_type, lexeme, args, index + 1)
-
-
-@dataclass(frozen=True)
-class StatementUnit:
-    instruction: Instruction
-    args: tuple[int, ...]
-    inline_last: bool
-
-    def toBytes(self, platform: Platform) -> bytes:
-        """Представление байткода"""
-        instruction_ptr_value = int(self.instruction.id)
-        sign = list(self.instruction.signature)
-
-        if self.inline_last:
-            instruction_ptr_value |= (1 << (platform.DATA.ptr_inst * 8 - 1))
-            sign[-1].pointer = False
-
-        res = platform.INST_PTR.toBytes(instruction_ptr_value)
-
-        for arg_t, arg_v in zip(sign, self.args):
-            res += (platform.HEAP_PTR if arg_t.pointer else arg_t.datatype).toBytes(arg_v)
-
-        return res
+        return Statement(_type, lexeme, args, index + 1, source_line)
 
 
-class Parser:
+class CodeGenerator:
     BASES_PREFIXES: dict[str, int] = {'x': 16, 'o': 8, 'b': 2}
 
     def __init__(self, environment: Environment):
@@ -160,7 +79,9 @@ class Parser:
         self.mark_offset: int = 0
         self.ptr_addr_next: int = 0
 
-        self.heap_directive_used = False
+        self.used_heap_directive = False
+        self.used_package_directive = False
+        self.used_platform_directive = False
 
         d = self.environment.DIRECTIVE
 
@@ -169,24 +90,24 @@ class Parser:
             for directive in self.environment.DIRECTIVE.__dict__.values()
         }
 
-        self.DIRECTIVE_CALLBACKS: dict[DirectiveUnit, typing.Callable[[Statement], None | StatementUnit]] = {
+        self.DIRECTIVE_CALLBACKS: dict[DirectiveUnit, Callable[[Statement], None | InstructionUnit]] = {
             d.SET_HEAP: self.directiveSetHeap,
             d.DEFINE_MACRO: self.directiveDefineMacro,
             d.INIT_POINTER: self.directiveInitPointer,
-            d.SET_POINTER: self.directiveSetPointer,
             d.USE_INLINE: self.directiveUseInline,
+            d.USE_PACKAGE: self.directiveUsePackage,
+            d.USE_PLATFORM: self.directiveUsePlatform
         }
 
-    def run(self, statements: Iterable[Statement]) -> Iterable[StatementUnit]:
-        self.mark_offset += self.environment.getPlatform().HEAP_PTR.size
-        self.ptr_addr_next = int(self.mark_offset)
+    def run(self, statements: Iterable[Statement]) -> Iterable[InstructionUnit]:
+        self.mark_offset = 0
 
-        ret = list[StatementUnit]()
+        ret = list[InstructionUnit]()
 
         for statement in statements:
             match statement.type:
                 case StatementType.MARK:
-                    self.environment.program.constants[statement.lexeme] = self.mark_offset
+                    self.mark(statement)
 
                 case StatementType.DIRECTIVE:
                     if (u := self.directive(statement)) is not None:
@@ -196,6 +117,12 @@ class Parser:
                     ret.append(self.instruction(statement))
 
         return ret
+
+    def mark(self, statement: Statement):
+        if not self.used_platform_directive:
+            self.environment.parsingError("MustUsePlatform", statement)
+
+        self.environment.program.constants[statement.lexeme] = self.mark_offset
 
     def getValue(self, arg_lexeme: str) -> int:
         """Получить значение из лексемы"""
@@ -216,118 +143,136 @@ class Parser:
         base = 10
 
         if len(arg_lexeme) > 2 and arg_lexeme[0] == '0' and (base := self.BASES_PREFIXES.get(arg_lexeme[1])) is None:
-            raise ByteLangError(f"IncorrectBasePrefix: {arg_lexeme}")
+            raise CodeGenerationError(f"IncorrectBasePrefix: {arg_lexeme}")
 
         try:
             return int(arg_lexeme, base)
 
         except ValueError as e:
-            raise ByteLangError(f"NotValid value '{arg_lexeme}' error: {e}")
+            raise CodeGenerationError(f"NotValid value '{arg_lexeme}' error: {e}")
 
-    def instruction(self, statement: Statement, inline_last: bool = False) -> StatementUnit:
+    def instruction(self, statement: Statement, inline_last: bool = False) -> InstructionUnit:
         instruction = self.environment.getPackage().INSTRUCTIONS.get(statement.lexeme)
 
         if instruction is None:
-            self.environment.statementError("InvalidInstruction", statement)
+            self.environment.parsingError("InvalidInstruction", statement)
 
         if instruction.can_inline is False and inline_last is True:
-            self.environment.statementError("CantInline", statement)
+            self.environment.parsingError("CantInline", statement)
 
         if len(instruction.signature) != len(statement.args):
-            self.environment.statementError("InvalidArgument", statement)
+            self.environment.parsingError("InvalidArgument", statement)
 
         self.mark_offset += instruction.getSize(self.environment.getPlatform(), inline_last)
-        # TODO если указатель - проверить наличие такой переменной в куче
-        return StatementUnit(instruction, tuple(self.getValue(arg) for arg in statement.args), inline_last)
 
-    def directive(self, statement: Statement) -> StatementUnit | None:
+        return InstructionUnit(instruction, self.instructionValidateArg(statement, instruction.signature, inline_last), inline_last)
+
+    def instructionValidateArg(self, statement: Statement, signature: tuple[Argument, ...], inline: bool) -> tuple[int, ...]:
+        ret = list[int]()
+
+        for index, (arg_type, arg_value) in enumerate(zip(signature, statement.args)):
+            arg_value = self.getValue(arg_value)
+            if not inline and arg_type.pointer and arg_value not in self.environment.program.addr_vars.keys():
+                self.environment.parsingError("AddrError", statement)
+
+            ret.append(arg_value)
+
+        return tuple(ret)
+
+    def directive(self, statement: Statement) -> InstructionUnit | None:
         if (d := self.DIRECTIVES.get(statement.lexeme)) is None:
-            self.environment.statementError("InvalidDirective", statement)
+            self.environment.parsingError("InvalidDirective", statement)
 
         if d.arg_count is not None and len(statement.args) != d.arg_count:
-            raise self.environment.statementError("InvalidArgCount", statement)
+            raise self.environment.parsingError("InvalidArgCount", statement)
 
         return self.DIRECTIVE_CALLBACKS.get(d)(statement)
+
+    def directiveUsePackage(self, statement: Statement):
+        if self.used_package_directive:
+            self.environment.parsingError("PackageAlreadyUsed", statement)
+
+        self.used_package_directive = True
+        self.environment.packages.use(statement.args[0])
+
+    def directiveUsePlatform(self, statement: Statement):
+        if self.used_platform_directive:
+            self.environment.parsingError("PlatformAlreadyUsed", statement)
+
+        self.used_platform_directive = True
+        self.environment.platforms.use(statement.args[0])
+
+        self.mark_offset = self.environment.getPlatform().HEAP_PTR.size
+        self.ptr_addr_next = int(self.mark_offset)
 
     def directiveDefineMacro(self, statement):
         name, value = statement.arg_count
         self.environment.program.constants[name] = self.getValue(value)
 
-    def directiveUseInline(self, statement: Statement) -> StatementUnit:
+    def directiveUseInline(self, statement: Statement) -> InstructionUnit:
         lexeme, *args = statement.args
-        return self.instruction(Statement(StatementType.INSTRUCTION, lexeme, args, statement.line), True)
+        return self.instruction(Statement(StatementType.INSTRUCTION, lexeme, args, statement.line, statement.source_line), True)
 
     def directiveInitPointer(self, statement: Statement):
-        ptr_type, ptr_name = statement.args
+        ptr_type, ptr_name, ptr_value = statement.args
 
         if (ptr_type := primitives.Collection.get(ptr_type)) is None:
-            self.environment.statementError("InvalidType", statement)
+            self.environment.parsingError("InvalidType", statement)
 
         ptr_addr = self.ptr_addr_next
 
-        if ptr_addr < self.environment.getPlatform().DATA.ptr_heap:
-            self.environment.statementError("AddressBeforeHeap", statement)
+        if ptr_addr < self.environment.getPlatform().HEAP_PTR.size:
+            self.environment.parsingError("AddressBeforeHeap", statement)
 
         if (ptr_addr + ptr_type.size) > self.environment.program.heap_size:
-            self.environment.statementError("AddressAfterHeap", statement)
+            self.environment.parsingError("AddressAfterHeap", statement)
 
         p_vars = self.environment.program.variables
 
         if ptr_name in p_vars:
-            self.environment.statementError("RedefineVariable", statement)
+            self.environment.parsingError("RedefineVariable", statement)
 
-        ret = p_vars[ptr_name] = PointerVariable(ptr_name, ptr_addr, ptr_type)
+        if not (ptr_type.min <= (ptr_value := self.getValue(ptr_value)) <= ptr_type.max):
+            raise self.environment.parsingError(f"NotInRange[{ptr_type.min};{ptr_type.max}]", statement)
+
+        ret = p_vars[ptr_name] = PointerVariable(ptr_name, ptr_addr, ptr_type, ptr_value)
         self.environment.program.addr_vars[ptr_addr] = ret
         self.ptr_addr_next += ret.getSize(self.environment.getPlatform())
 
     def directiveSetHeap(self, statement: Statement):
-        if self.heap_directive_used:
-            self.environment.statementError("ReinitHeap", statement)
+        if self.used_heap_directive:
+            self.environment.parsingError("ReinitHeap", statement)
 
-        self.heap_directive_used = True
+        self.used_heap_directive = True
         h = self.environment.program.heap_size = self.getValue(statement.args[0])
         self.mark_offset += h
 
         if not (0 < h < self.environment.getPlatform().HEAP_PTR.max):
-            self.environment.statementError("InvalidHeapSize", statement)
-
-    def directiveSetPointer(self, statement: Statement):
-        name, value = statement.args
-
-        if (var := self.environment.program.variables.get(name)) is None:
-            self.environment.statementError("VariableNotDefined", statement)
-
-        if not (var.type.min <= (value := self.getValue(value)) <= var.type.max):
-            raise self.environment.statementError(f"NotInRange[{var.type.min};{var.type.max}]", statement)
-
-        if var.has_static_set:
-            self.environment.statementError("VariableReinit", statement)
-
-        var.set(value)
+            self.environment.parsingError("InvalidHeapSize", statement)
 
 
-class Compiler:
+class ProgramGenerator:
     """Компилятор в байткод"""
 
     def __init__(self, environment: Environment):
         self.environment = environment
 
-    def run(self, statementsUnits: Iterable[StatementUnit]) -> bytes:
+    def run(self, statementsUnits: Iterable[InstructionUnit]) -> bytes:
         ret = self.__getHeap() + self.__getProgram(statementsUnits)
 
-        if (L := len(ret)) > (max_len := self.environment.getPlatform().DATA.prog_len):
-            raise ByteLangError(f"Program too long ({L}/{max_len})")
+        if (L := len(ret)) > (max_len := self.environment.getPlatform().PROGRAM_LEN):
+            raise CompileError(f"Program too long ({L}/{max_len})")
 
         return ret
 
-    def __getProgram(self, statementsUnits: Iterable[StatementUnit]):
+    def __getProgram(self, statementsUnits: Iterable[InstructionUnit]):
         program = bytes()
         for unit in statementsUnits:
             program += unit.toBytes(self.environment.getPlatform())
         return program
 
     def __getHeap(self):
-        ptr_size = self.environment.getPlatform().DATA.ptr_heap
+        ptr_size = self.environment.getPlatform().HEAP_PTR.size
         size = self.environment.program.heap_size
         heap_data = primitives.Collection.pointer(ptr_size).toBytes(size + ptr_size)
 
@@ -342,3 +287,31 @@ class Compiler:
                 heap_data[i + var.ptr] = b
 
         return bytes(heap_data)
+
+
+class Compiler:
+
+    def __init__(self, packages_folder: str, platforms_folder: str):
+        self.environment = e = Environment(PackageLoader(packages_folder), PlatformLoader(platforms_folder))
+        self.tokeniser = LexicalAnalyser(e)
+        self.parser = CodeGenerator(e)
+        self.compiler = ProgramGenerator(e)
+
+        self.instruction_units: Optional[Iterable[Statement]] = None
+        self.statements: Optional[Iterable[InstructionUnit]] = None
+
+    def run(self, source: str) -> bytes:
+        try:
+            self.statements = self.tokeniser.run(source)
+        except LexicalError as e:
+            raise ByteLangError(e)
+
+        try:
+            self.instruction_units = self.parser.run(self.statements)
+        except CodeGenerationError as e:
+            raise ByteLangError(e)
+
+        try:
+            return self.compiler.run(self.instruction_units)
+        except CompileError as e:
+            raise ByteLangError(e)

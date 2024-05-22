@@ -1,4 +1,6 @@
 import json
+from pathlib import Path
+from typing import Iterable
 
 
 class File:
@@ -49,6 +51,10 @@ class File:
     @classmethod
     def readJSON(cls, filepath: str) -> dict | list:
         return cls.__forFileExecute(filepath, "r", lambda file: json.load(file))
+
+    @classmethod
+    def getFileNamesByExt(cls, folder: str, extension: str) -> Iterable[str]:
+        return (file.stem for file in Path(folder).glob(f"*.{extension}"))
 
     @classmethod
     def readPackage(cls, filepath: str) -> tuple[tuple[str, tuple[str]]]:
