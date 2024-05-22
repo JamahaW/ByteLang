@@ -16,7 +16,7 @@ def main():
     try:
         program = compiler.run(source)
         print(list(program))
-        File.saveBinary("../code/tester.blc", program)
+        # File.saveBinary("../code/tester.blc", program)
 
     except ByteLangError as e:
         print(e)

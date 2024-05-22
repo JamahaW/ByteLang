@@ -1,37 +1,42 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
 from typing import Iterable, Optional, Callable
 
 from . import primitives
 from .data import Package, Platform, Argument, PointerVariable, InstructionUnit
 from .errors import ByteLangError, LexicalError, CodeGenerationError, CompileError
 from .loaders import PackageLoader, PlatformLoader
-from .mini import StatementType, Statement, DirectiveUnit, DirectivesCollection, CharSettings, ProgramData
+from .mini import StatementType, Statement
 
 
 class Environment:
+    @dataclass(frozen=True)
+    class CharSettings:
+        COMMENT: str
+        MARK: str
+        DIRECTIVE: str
+
+    @dataclass(init=False)
+    class ProgramData:
+        heap_size: int = 0
+        constants = dict[str, int | str]()
+        variables = dict[str, PointerVariable]()
+        addr_vars = dict[int, PointerVariable]()
 
     def __init__(self, packages: PackageLoader, platforms: PlatformLoader):
         self.packages = packages
         self.platforms = platforms
 
-        self.program = ProgramData()
-        self.CHAR = CharSettings('#', ':', '.')
-        self.DIRECTIVE = DirectivesCollection(
-            SET_HEAP=DirectiveUnit("heap", 1),
-            INIT_POINTER=DirectiveUnit("ptr", 3),
-            USE_INLINE=DirectiveUnit("inline", None),
-            DEFINE_MACRO=DirectiveUnit("def", 2),
-            USE_PACKAGE=DirectiveUnit("package", 1),
-            USE_PLATFORM=DirectiveUnit("platform", 1)
-        )
+        self.program = Environment.ProgramData()
+
+        self.CHAR = Environment.CharSettings('#', ':', '.')
 
     def getPlatform(self) -> Platform:
         return self.platforms.get()
 
     def getPackage(self) -> Package:
         return self.packages.get()
-
-    def parsingError(self, message: str, statement: Statement) -> None:
-        raise CodeGenerationError(f"[ parse error ] :: {message} : {statement}")
 
 
 # TODO Lexical, Syntax??
@@ -74,33 +79,26 @@ class CodeGenerator:
     BASES_PREFIXES: dict[str, int] = {'x': 16, 'o': 8, 'b': 2}
 
     def __init__(self, environment: Environment):
-        self.environment = environment
+        self.__env = environment
 
-        self.mark_offset: int = 0
-        self.ptr_addr_next: int = 0
+        self.__mark_offset: int = 0
+        self.__ptr_addr_next: int = 0
 
-        self.used_heap_directive = False
-        self.used_package_directive = False
-        self.used_platform_directive = False
+        self.__used_heap_directive = False
+        self.__used_package_directive = False
+        self.__used_platform_directive = False
 
-        d = self.environment.DIRECTIVE
-
-        self.DIRECTIVES: dict[str, DirectiveUnit] = {
-            directive.name: directive
-            for directive in self.environment.DIRECTIVE.__dict__.values()
-        }
-
-        self.DIRECTIVE_CALLBACKS: dict[DirectiveUnit, Callable[[Statement], None | InstructionUnit]] = {
-            d.SET_HEAP: self.directiveSetHeap,
-            d.DEFINE_MACRO: self.directiveDefineMacro,
-            d.INIT_POINTER: self.directiveInitPointer,
-            d.USE_INLINE: self.directiveUseInline,
-            d.USE_PACKAGE: self.directiveUsePackage,
-            d.USE_PLATFORM: self.directiveUsePlatform
+        self.__DIRECTIVES_TABLE: dict[str, tuple[Optional[int], Callable[[Statement], Optional[InstructionUnit]]]] = {
+            "heap": (1, self.directiveSetHeap),
+            "ptr": (3, self.directiveInitPointer),
+            "inline": (None, self.directiveUseInline),
+            "def": (2, self.directiveDefineMacro),
+            "package": (1, self.directiveUsePackage),
+            "platform": (1, self.directiveUsePlatform),
         }
 
     def run(self, statements: Iterable[Statement]) -> Iterable[InstructionUnit]:
-        self.mark_offset = 0
+        self.__mark_offset = 0
 
         ret = list[InstructionUnit]()
 
@@ -119,10 +117,10 @@ class CodeGenerator:
         return ret
 
     def mark(self, statement: Statement):
-        if not self.used_platform_directive:
-            self.environment.parsingError("MustUsePlatform", statement)
+        if not self.__used_platform_directive:
+            raise CodeGenerationError(f'ParsingError MustUsePlatform : {statement}')
 
-        self.environment.program.constants[statement.lexeme] = self.mark_offset
+        self.__env.program.constants[statement.lexeme] = self.__mark_offset
 
     def getValue(self, arg_lexeme: str) -> int:
         """Получить значение из лексемы"""
@@ -131,11 +129,11 @@ class CodeGenerator:
             return arg_lexeme
 
         # данное значение найдено среди констант
-        if (val := self.environment.program.constants.get(arg_lexeme)) is not None:
+        if (val := self.__env.program.constants.get(arg_lexeme)) is not None:
             return self.getValue(val)
 
         # если указатель - возвращаем адрес
-        if (val := self.environment.program.variables.get(arg_lexeme)) is not None:
+        if (val := self.__env.program.variables.get(arg_lexeme)) is not None:
             return val.ptr
 
         # ничего не было найдено, возможно это число
@@ -152,18 +150,18 @@ class CodeGenerator:
             raise CodeGenerationError(f"NotValid value '{arg_lexeme}' error: {e}")
 
     def instruction(self, statement: Statement, inline_last: bool = False) -> InstructionUnit:
-        instruction = self.environment.getPackage().INSTRUCTIONS.get(statement.lexeme)
+        instruction = self.__env.getPackage().INSTRUCTIONS.get(statement.lexeme)
 
         if instruction is None:
-            self.environment.parsingError("InvalidInstruction", statement)
+            raise CodeGenerationError(f'ParsingError{"InvalidInstruction"} : {statement}')
 
         if instruction.can_inline is False and inline_last is True:
-            self.environment.parsingError("CantInline", statement)
+            raise CodeGenerationError(f'ParsingError{"CantInline"} : {statement}')
 
         if len(instruction.signature) != len(statement.args):
-            self.environment.parsingError("InvalidArgument", statement)
+            raise CodeGenerationError(f'ParsingError{"InvalidArgument"} : {statement}')
 
-        self.mark_offset += instruction.getSize(self.environment.getPlatform(), inline_last)
+        self.__mark_offset += instruction.getSize(self.__env.getPlatform(), inline_last)
 
         return InstructionUnit(instruction, self.instructionValidateArg(statement, instruction.signature, inline_last), inline_last)
 
@@ -172,42 +170,44 @@ class CodeGenerator:
 
         for index, (arg_type, arg_value) in enumerate(zip(signature, statement.args)):
             arg_value = self.getValue(arg_value)
-            if not inline and arg_type.pointer and arg_value not in self.environment.program.addr_vars.keys():
-                self.environment.parsingError("AddrError", statement)
+            if not inline and arg_type.pointer and arg_value not in self.__env.program.addr_vars.keys():
+                raise CodeGenerationError(f'ParsingError{"AddrError"} : {statement}')
 
             ret.append(arg_value)
 
         return tuple(ret)
 
     def directive(self, statement: Statement) -> InstructionUnit | None:
-        if (d := self.DIRECTIVES.get(statement.lexeme)) is None:
-            self.environment.parsingError("InvalidDirective", statement)
+        if (e := self.__DIRECTIVES_TABLE.get(statement.lexeme)) is None:
+            raise CodeGenerationError(f'ParsingError{"InvalidDirective"} : {statement}')
 
-        if d.arg_count is not None and len(statement.args) != d.arg_count:
-            raise self.environment.parsingError("InvalidArgCount", statement)
+        arg_count, func = e
 
-        return self.DIRECTIVE_CALLBACKS.get(d)(statement)
+        if arg_count is None or len(statement.args) == arg_count:
+            return func(statement)
+
+        raise CodeGenerationError(f'ParsingError{"InvalidArgCount"} : {statement}')
 
     def directiveUsePackage(self, statement: Statement):
-        if self.used_package_directive:
-            self.environment.parsingError("PackageAlreadyUsed", statement)
+        if self.__used_package_directive:
+            raise CodeGenerationError(f'ParsingError{"PackageAlreadyUsed"} : {statement}')
 
-        self.used_package_directive = True
-        self.environment.packages.use(statement.args[0])
+        self.__used_package_directive = True
+        self.__env.packages.use(statement.args[0])
 
     def directiveUsePlatform(self, statement: Statement):
-        if self.used_platform_directive:
-            self.environment.parsingError("PlatformAlreadyUsed", statement)
+        if self.__used_platform_directive:
+            raise CodeGenerationError(f'ParsingError{"PlatformAlreadyUsed"} : {statement}')
 
-        self.used_platform_directive = True
-        self.environment.platforms.use(statement.args[0])
+        self.__used_platform_directive = True
+        self.__env.platforms.use(statement.args[0])
 
-        self.mark_offset = self.environment.getPlatform().HEAP_PTR.size
-        self.ptr_addr_next = int(self.mark_offset)
+        self.__mark_offset = self.__env.getPlatform().HEAP_PTR.size
+        self.__ptr_addr_next = int(self.__mark_offset)
 
     def directiveDefineMacro(self, statement):
-        name, value = statement.arg_count
-        self.environment.program.constants[name] = self.getValue(value)
+        name, value = statement.args
+        self.__env.program.constants[name] = value
 
     def directiveUseInline(self, statement: Statement) -> InstructionUnit:
         lexeme, *args = statement.args
@@ -217,38 +217,38 @@ class CodeGenerator:
         ptr_type, ptr_name, ptr_value = statement.args
 
         if (ptr_type := primitives.Collection.get(ptr_type)) is None:
-            self.environment.parsingError("InvalidType", statement)
+            raise CodeGenerationError(f'ParsingError"InvalidType" : {statement}')
 
-        ptr_addr = self.ptr_addr_next
+        ptr_addr = self.__ptr_addr_next
 
-        if ptr_addr < self.environment.getPlatform().HEAP_PTR.size:
-            self.environment.parsingError("AddressBeforeHeap", statement)
+        if ptr_addr < self.__env.getPlatform().HEAP_PTR.size:
+            raise CodeGenerationError(f'ParsingError"AddressBeforeHeap" : {statement}')
 
-        if (ptr_addr + ptr_type.size) > self.environment.program.heap_size:
-            self.environment.parsingError("AddressAfterHeap", statement)
+        if (ptr_addr + ptr_type.size) > self.__env.program.heap_size:
+            raise CodeGenerationError(f'ParsingError"AddressAfterHeap" : {statement}')
 
-        p_vars = self.environment.program.variables
+        p_vars = self.__env.program.variables
 
         if ptr_name in p_vars:
-            self.environment.parsingError("RedefineVariable", statement)
+            raise CodeGenerationError(f'ParsingError"RedefineVariable" : {statement}')
 
         if not (ptr_type.min <= (ptr_value := self.getValue(ptr_value)) <= ptr_type.max):
-            raise self.environment.parsingError(f"NotInRange[{ptr_type.min};{ptr_type.max}]", statement)
+            raise CodeGenerationError(f'ParsingErrorNotInRange[{ptr_type.min};{ptr_type.max}] : {statement}')
 
         ret = p_vars[ptr_name] = PointerVariable(ptr_name, ptr_addr, ptr_type, ptr_value)
-        self.environment.program.addr_vars[ptr_addr] = ret
-        self.ptr_addr_next += ret.getSize(self.environment.getPlatform())
+        self.__env.program.addr_vars[ptr_addr] = ret
+        self.__ptr_addr_next += ret.getSize(self.__env.getPlatform())
 
     def directiveSetHeap(self, statement: Statement):
-        if self.used_heap_directive:
-            self.environment.parsingError("ReinitHeap", statement)
+        if self.__used_heap_directive:
+            raise CodeGenerationError(f'ParsingError"ReinitHeap" : {statement}')
 
-        self.used_heap_directive = True
-        h = self.environment.program.heap_size = self.getValue(statement.args[0])
-        self.mark_offset += h
+        self.__used_heap_directive = True
+        h = self.__env.program.heap_size = self.getValue(statement.args[0])
+        self.__mark_offset += h
 
-        if not (0 < h < self.environment.getPlatform().HEAP_PTR.max):
-            self.environment.parsingError("InvalidHeapSize", statement)
+        if not (0 < h < self.__env.getPlatform().HEAP_PTR.max):
+            raise CodeGenerationError(f'ParsingError"InvalidHeapSize" : {statement}')
 
 
 class ProgramGenerator:

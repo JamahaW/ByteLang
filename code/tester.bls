@@ -1,11 +1,14 @@
 .platform test_platform
 .package stdpack
 
+.def A 123
+
 .heap 3
 
-.ptr u16 x 12345
+.ptr u16 x A
 
 start:
     print x
 
+end:
     exit 0
