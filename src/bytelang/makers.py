@@ -1,37 +1,31 @@
 from __future__ import annotations
 
-import struct
-from dataclasses import dataclass
 from typing import Iterable, Optional, Callable
 
 from .data import Package, Platform, Argument, PointerVariable, InstructionUnit
 from .errors import ByteLangError, LexicalError, CodeGenerationError, CompileError
 from .loaders import PackageLoader, PlatformLoader
 from .mini import StatementType, Statement
-from .primitives import PrimitiveCollection
+from .primitives import PrimitiveCollection, PrimitiveType
 
 
 class Environment:
-    @dataclass(frozen=True)
-    class CharSettings:
-        COMMENT: str
-        MARK: str
-        DIRECTIVE: str
-
-    @dataclass(init=False)
-    class ProgramData:
-        heap_head_value: int = 0
-        constants = dict[str, int | str]()
-        variables = dict[str, PointerVariable]()
-        addr_vars = dict[bytes, PointerVariable]()
+    BASES_PREFIXES: dict[str, int] = {'x': 16, 'o': 8, 'b': 2}
 
     def __init__(self, packages: PackageLoader, platforms: PlatformLoader):
         self.packages = packages
+        """Загрузчик пакетов инструкций"""
         self.platforms = platforms
+        """Загрузчик платформ"""
 
-        self.program = Environment.ProgramData()
-
-        self.CHAR = Environment.CharSettings('#', ':', '.')
+        self.start: int = 0
+        """Индекс байта начала кода"""
+        self.consts = dict[str, str | int]()
+        """значения макро констант"""
+        self.variables = dict[str, PointerVariable]()
+        """переменные"""
+        self.addr_vars = set[bytes]()
+        """множество адресов существующих переменных"""
 
     def getPlatform(self) -> Platform:
         return self.platforms.get()
@@ -39,19 +33,51 @@ class Environment:
     def getPackage(self) -> Package:
         return self.packages.get()
 
+    def readConst(self, lexeme: str) -> int | float:
+        # лексема - имя константы -> значение константы
+        if (ret := self.consts.get(lexeme)) is not None:
+            return self.readConst(ret)
+
+        try:
+            # лексема - float
+            if "." in lexeme:
+                return float(lexeme)
+
+            # может быть int
+            base = 10
+
+            if len(lexeme) > 2 and lexeme[0] == '0' and (base := self.BASES_PREFIXES.get(lexeme[1])) is None:
+                raise ByteLangError(f"IncorrectBasePrefix: {lexeme}")
+
+            return int(lexeme, base)
+
+        except ValueError as e:
+            raise ByteLangError(f"cannot cast value '{lexeme}' to _type.name\n({e})")
+
+    def writeValue(self, lexeme: str, _type: PrimitiveType) -> bytes:
+        # лексема - имя переменной -> адрес переменной
+        if (ret := self.variables.get(lexeme)) is not None:
+            return self.getPlatform().HEAP_PTR.write(ret.address)
+
+        # любое другое константное значение -> читаем константу
+        return _type.write(self.readConst(lexeme))
+
 
 # TODO Lexical, Syntax??
 class LexicalAnalyser:
 
     def __init__(self, environment: Environment):
         self.environment = environment
+        self.COMMENT = "#"
+        self.MARK = ":"
+        self.DIRECTIVE = "."
 
     def run(self, source: str) -> Iterable[Statement]:
         ret = list()
 
         for index, source_line in enumerate(source.split("\n")):
-            if (line_no_comment := source_line.split(self.environment.CHAR.COMMENT)[0].strip()) != "":
-                ret.append(self.__createStatement(index, line_no_comment, source_line))
+            if (line_no_comment := source_line.split(self.COMMENT)[0].strip()) != "":
+                ret.append(self.__createStatement(index + 1, line_no_comment, source_line))
 
         return ret
 
@@ -59,11 +85,11 @@ class LexicalAnalyser:
         lexeme, *args = line_clean.split()
         _type = None
 
-        if lexeme[-1] == self.environment.CHAR.MARK:
+        if lexeme[-1] == self.MARK:
             _type = StatementType.MARK
             lexeme = lexeme[:-1]
 
-        elif lexeme[0] == self.environment.CHAR.DIRECTIVE:
+        elif lexeme[0] == self.DIRECTIVE:
             lexeme = lexeme[1:]
             _type = StatementType.DIRECTIVE
 
@@ -73,11 +99,10 @@ class LexicalAnalyser:
         else:
             raise LexicalError(f"Invalid Statement: '{lexeme}' at Line {index}\n'{source_line}'")
 
-        return Statement(_type, lexeme, args, index + 1, source_line)
+        return Statement(_type, lexeme, args, index, source_line)
 
 
 class CodeGenerator:
-    BASES_PREFIXES: dict[str, int] = {'x': 16, 'o': 8, 'b': 2}
 
     def __init__(self, environment: Environment):
         self.__env = environment
@@ -100,7 +125,6 @@ class CodeGenerator:
 
     def run(self, statements: Iterable[Statement]) -> Iterable[InstructionUnit]:
         self.__mark_offset = 0
-
         ret = list[InstructionUnit]()
 
         for statement in statements:
@@ -121,31 +145,7 @@ class CodeGenerator:
         if not self.__used_platform_directive:
             raise CodeGenerationError(f'ParsingError MustUsePlatform : {statement}')
 
-        self.__env.program.constants[statement.lexeme] = self.__mark_offset
-
-    def getValue(self, arg_lexeme: str, arg_type: Argument) -> bytes:
-        """Получить значение из лексемы"""
-
-        # данное значение найдено среди констант
-        if (val := self.__env.program.constants.get(arg_lexeme)) is not None:
-            return self.getValue(val, arg_type)
-
-        # если указатель - возвращаем адрес
-        if (val := self.__env.program.variables.get(arg_lexeme)) is not None:
-            return arg_type.toBytes(self.__env.getPlatform(), val.ptr)
-
-        # ничего не было найдено, возможно это число
-
-        base = 10
-
-        if len(arg_lexeme) > 2 and arg_lexeme[0] == '0' and (base := self.BASES_PREFIXES.get(arg_lexeme[1])) is None:
-            raise CodeGenerationError(f"IncorrectBasePrefix: {arg_lexeme}")
-
-        try:
-            return arg_type.toBytes(self.__env.getPlatform(), int(arg_lexeme, base))
-
-        except ValueError as e:
-            raise CodeGenerationError(f"NotValid value '{arg_lexeme}' error: {e}")
+        self.__env.consts[statement.lexeme] = self.__mark_offset
 
     def instruction(self, statement: Statement, inline_last: bool = False) -> InstructionUnit:
         instruction = self.__env.getPackage().INSTRUCTIONS.get(statement.lexeme)
@@ -167,9 +167,9 @@ class CodeGenerator:
         ret = list[bytes]()
 
         for index, (arg_type, arg_value) in enumerate(zip(signature, statement.args)):
-            arg_value = self.getValue(arg_value, arg_type)
-            if not inline and arg_type.pointer and arg_value not in self.__env.program.addr_vars.keys():
-                raise CodeGenerationError(f'ParsingError{"AddrError"} : {statement}')
+            arg_value = self.__env.writeValue(arg_value, arg_type.datatype)
+            if not inline and arg_type.pointer and arg_value not in self.__env.addr_vars:
+                raise CodeGenerationError(f'ParsingErrorAddrError : {statement}')
 
             ret.append(arg_value)
 
@@ -205,38 +205,34 @@ class CodeGenerator:
 
     def directiveDefineMacro(self, statement):
         name, value = statement.args
-        self.__env.program.constants[name] = value
+        self.__env.consts[name] = value
 
     def directiveUseInline(self, statement: Statement) -> InstructionUnit:
         lexeme, *args = statement.args
         return self.instruction(Statement(StatementType.INSTRUCTION, lexeme, args, statement.line, statement.source_line), True)
 
     def directiveInitPointer(self, statement: Statement):
-        ptr_type, ptr_name, ptr_value = statement.args
+        _type, name, value_lexeme = statement.args
 
-        if (ptr_type := PrimitiveCollection.get(ptr_type)) is None:
+        if (_type := PrimitiveCollection.get(_type)) is None:
             raise CodeGenerationError(f'ParsingError"InvalidType" : {statement}')
 
-        ptr_addr = self.__ptr_addr_next
+        address = self.__ptr_addr_next
 
-        if ptr_addr < self.__env.getPlatform().HEAP_PTR.size:
-            raise CodeGenerationError(f'ParsingError"AddressBeforeHeap" : {statement}')
+        if (address + _type.size) > self.__env.start:
+            raise CodeGenerationError(f'ParsingError"AddressAfterHeap" : {statement}')
 
-        # if (ptr_addr + ptr_type.size) > self.__env.program.heap_head_value:
-        #     raise CodeGenerationError(f'ParsingError"AddressAfterHeap" : {statement}')
-
-        p_vars = self.__env.program.variables
-
-        if ptr_name in p_vars:
+        if name in self.__env.variables:
             raise CodeGenerationError(f'ParsingError"RedefineVariable" : {statement}')
 
-        ptr_value = self.getValue(ptr_value, Argument(self.__env.getPlatform().HEAP_PTR, False))
+        value_bytes = self.__env.writeValue(value_lexeme, _type)
+        value_lexeme = _type.read(value_bytes)
 
-        # if not (ptr_type.min <= ptr_value <= ptr_type.max):
-        #     raise CodeGenerationError(f'ParsingErrorNotInRange[{ptr_type.min};{ptr_type.max}] : {statement}')
+        if not (_type.min <= value_lexeme <= _type.max):
+            raise CodeGenerationError(f'ParsingErrorNotInRange[{_type.min};{_type.max}] : {statement}')
 
-        ret = p_vars[ptr_name] = PointerVariable(ptr_name, ptr_addr, ptr_type, ptr_value)
-        self.__env.program.addr_vars[self.__env.getPlatform().HEAP_PTR.toBytes(ptr_addr)] = ret
+        ret = self.__env.variables[name] = PointerVariable(name, address, _type, value_bytes)
+        self.__env.addr_vars.add(self.__env.getPlatform().HEAP_PTR.write(address))
         self.__ptr_addr_next += ret.getSize(self.__env.getPlatform())
 
     def directiveSetHeap(self, statement: Statement):
@@ -244,12 +240,13 @@ class CodeGenerator:
             raise CodeGenerationError(f'ParsingError"ReinitHeap" : {statement}')
 
         self.__used_heap_directive = True
-        self.__env.program.heap_head_value = self.getValue(statement.args[0], Argument(self.__env.getPlatform().HEAP_PTR, False))
-        h = int(statement.args[0])  # TODO FIXME
+
+        platform = self.__env.getPlatform()
+        h = self.__env.start = self.__env.readConst(statement.args[0])
         self.__mark_offset += h
 
-        # if not (0 < h < self.__env.getPlatform().HEAP_PTR.max):
-        #     raise CodeGenerationError(f'ParsingError"InvalidHeapSize" : {statement}')
+        if not (0 < h < platform.HEAP_PTR.max):
+            raise CodeGenerationError(f'ParsingError"InvalidHeapSize" : {statement}')
 
 
 class ProgramGenerator:
@@ -269,25 +266,23 @@ class ProgramGenerator:
     def __getProgram(self, statementsUnits: Iterable[InstructionUnit]):
         program = bytes()
         for unit in statementsUnits:
-            program += unit.toBytes(self.environment.getPlatform())
+            program += unit.write(self.environment.getPlatform())
         return program
 
     def __getHeap(self):
         h_ptr = self.environment.getPlatform().HEAP_PTR
-        ptr_size = h_ptr.size
-        size = self.environment.program.heap_head_value
-        size = struct.unpack(h_ptr.format, size)[0]
-        heap_data = PrimitiveCollection.pointer(ptr_size).toBytes(size + ptr_size)
+        size = self.environment.start
+        heap_data = PrimitiveCollection.pointer(h_ptr.size).write(size + h_ptr.size)  # TODO wtf
 
         if size == 0:
             return heap_data
 
         heap_data = list(heap_data + bytes(size))
 
-        for var in self.environment.program.variables.values():
-            var_bytes = list(var.toBytes(self.environment.getPlatform()))
+        for var in self.environment.variables.values():
+            var_bytes = list(var.write(self.environment.getPlatform()))
             for i, b in enumerate(var_bytes):
-                heap_data[i + var.ptr] = b
+                heap_data[i + var.address] = b
 
         return bytes(heap_data)
 
@@ -296,6 +291,7 @@ class Compiler:
 
     def __init__(self, packages_folder: str, platforms_folder: str):
         self.environment = e = Environment(PackageLoader(packages_folder), PlatformLoader(platforms_folder))
+
         self.tokeniser = LexicalAnalyser(e)
         self.parser = CodeGenerator(e)
         self.compiler = ProgramGenerator(e)

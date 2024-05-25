@@ -30,10 +30,24 @@ class Package:
         raise ByteLangError(f"Error in package '{self.PATH}', Instruction '{name}', at arg: {i} unknown type: '{arg}'")
 
     def __loadInstructions(self):
-        return {
-            name: Instruction(self.NAME, name, index, tuple(self.__prepareArgument(i_arg, name) for i_arg in enumerate(signature)))
-            for index, (name, signature) in enumerate(File.readPackage(self.PATH))
-        }
+        ret = dict[str, Instruction]()
+        _id: int = 0
+
+        for line in File.read(self.PATH).split("\n"):
+            line = line.split("#")[0].strip()
+
+            if line == "":
+                continue
+
+            name, *arg_types = line.split()
+
+            if name in ret.keys():
+                raise KeyError(f"In ByteLang Instruction package '{self.PATH}' redefinition of '{name}'")
+
+            ret[name] = Instruction(self.NAME, name, _id, tuple(self.__prepareArgument(arg_t, name) for arg_t in enumerate(arg_types)))
+            _id += 1
+
+        return ret
 
 
 class Platform:
@@ -87,8 +101,8 @@ class Argument:
     def getSize(self, platform: Platform) -> int:
         return (platform.HEAP_PTR if self.pointer else self.datatype).size
 
-    def toBytes(self, platform: Platform, value: int) -> bytes:
-        return (platform.HEAP_PTR if self.pointer else self.datatype).toBytes(value)
+    def write(self, platform: Platform, value: int) -> bytes:
+        return (platform.HEAP_PTR if self.pointer else self.datatype).write(value)
 
 
 class Instruction:
@@ -123,18 +137,18 @@ class Instruction:
 
 
 class PointerVariable:
-    def __init__(self, name: str, heap_ptr: int, _type: PrimitiveType, value: bytes):
+    def __init__(self, name: str, address: int, _type: PrimitiveType, value: bytes):
         self.name = name
-        self.ptr = heap_ptr
+        self.address = address
         self.type = _type
         self.value = value
 
     def __repr__(self):
-        return f"({self.type}) {self.name}@{self.ptr} = {self.value.hex()}"
+        return f"({self.type}) {self.name}@{self.address} = {self.type.read(self.value)}"
 
-    def toBytes(self, platform: Platform) -> bytes:  # TODO кластеры переменных в куче по типам
+    def write(self, platform: Platform) -> bytes:  # TODO кластеры переменных в куче по типам
         """Получить представление в куче"""
-        return platform.TYPE_PTR.toBytes(self.type.id) + self.value
+        return platform.TYPE_PTR.write(self.type.id) + self.value
 
     def getSize(self, platform: Platform) -> int:
         """Размер переменной в байтах"""
@@ -147,7 +161,7 @@ class InstructionUnit:
     args: tuple[bytes, ...]
     inline_last: bool
 
-    def toBytes(self, platform: Platform) -> bytes:
+    def write(self, platform: Platform) -> bytes:
         """Представление байткода"""
         instruction_ptr_value = int(self.instruction.id)
         sign = list(self.instruction.signature)
@@ -156,7 +170,7 @@ class InstructionUnit:
             instruction_ptr_value |= (1 << (platform.INST_PTR.size * 8 - 1))
             sign[-1].pointer = False
 
-        res = platform.INST_PTR.toBytes(instruction_ptr_value)
+        res = platform.INST_PTR.write(instruction_ptr_value)
 
         for arg_v in self.args:
             res += arg_v

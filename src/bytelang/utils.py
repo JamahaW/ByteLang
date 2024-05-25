@@ -56,26 +56,26 @@ class File:
     def getFileNamesByExt(cls, folder: str, extension: str) -> Iterable[str]:
         return (file.stem for file in Path(folder).glob(f"*.{extension}"))
 
-    @classmethod
-    def readPackage(cls, filepath: str) -> tuple[tuple[str, tuple[str]]]:
-        """Прочесть пакет инструкций ByteLang"""
-        ret = list()
-        names_used = set[str]()
 
-        lines = cls.read(filepath).split("\n")
+def readPackage(filepath: str) -> tuple[tuple[str, tuple[str]]]:
+    """Прочесть пакет инструкций ByteLang"""
+    ret = list()
+    names_used = set[str]()
 
-        for line in lines:
-            line = line.split("#")[0].strip()
+    lines = File.read(filepath).split("\n")
 
-            if line == "":
-                continue
+    for line in lines:
+        line = line.split("#")[0].strip()
 
-            name, *signature = line.split()
+        if line == "":
+            continue
 
-            if name in names_used:
-                raise KeyError(f"In ByteLang Instruction package '{filepath}' redefinition of '{name}'")
+        name, *signature = line.split()
 
-            names_used.add(name)
-            ret.append((name, signature))
+        if name in names_used:
+            raise KeyError(f"In ByteLang Instruction package '{filepath}' redefinition of '{name}'")
 
-        return tuple[tuple[str, tuple[str]]](ret)
+        names_used.add(name)
+        ret.append((name, signature))
+
+    return tuple[tuple[str, tuple[str]]](ret)

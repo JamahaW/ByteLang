@@ -1,14 +1,16 @@
 .platform test_platform
 .package stdpack
-
-.def A 0xFF
-
 .heap 3
 
-.ptr u16 x A
+.ptr u16 result 0
 
 start:
-    print x
+    .inline push 100
+    .inline push 25
+
+    pop result
+
+    print result
 
 end:
     exit 0

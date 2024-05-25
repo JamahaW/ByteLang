@@ -10,7 +10,7 @@ def printIterable(i: Iterable):
 
 
 def main():
-    compiler = Compiler("A:/Projects/ByteLang/packages/", "A:/Projects/ByteLang/platforms/")
+    compiler = Compiler("../packages/", "../platforms/")
     source = File.read("../code/tester.bls")
 
     try:
@@ -22,8 +22,8 @@ def main():
         print(e)
 
     else:
-        printIterable(compiler.environment.program.constants.items())
-        printIterable(compiler.environment.program.variables.values())
+        printIterable(compiler.environment.consts.items())
+        printIterable(compiler.environment.variables.values())
 
 
 main()

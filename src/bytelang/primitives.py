@@ -38,8 +38,11 @@ class PrimitiveType:
     def __str__(self):
         return self.name
 
-    def toBytes(self, value: int) -> bytes:
+    def write(self, value: int | float) -> bytes:
         return self.__packer.pack(value)
+
+    def read(self, data: bytes) -> float | str | int:
+        return self.__packer.unpack(data)[0]
 
 
 class PrimitiveCollection:
