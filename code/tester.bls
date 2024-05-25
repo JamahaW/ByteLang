@@ -8,6 +8,8 @@ start:
     .inline push 100
     .inline push 25
 
+    add
+
     pop result
 
     print result

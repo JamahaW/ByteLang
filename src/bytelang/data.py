@@ -130,8 +130,10 @@ class Instruction:
         """Размер скомпилированной инструкции в байтах"""
 
         ret = platform.INST_PTR.size  # Указатель инструкции
-        ret += sum(arg.getSize(platform) for arg in self.signature[:-1])  # not-inline аргументы
-        ret += self.signature[-1].datatype.size if inlined else self.signature[-1].getSize(platform)  # inline аргумент
+
+        if self.signature:
+            ret += sum(arg.getSize(platform) for arg in self.signature[:-1])  # not-inline аргументы
+            ret += self.signature[-1].datatype.size if inlined else self.signature[-1].getSize(platform)  # inline аргумент
 
         return ret
 
