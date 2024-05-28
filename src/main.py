@@ -24,6 +24,8 @@ def main():
     else:
         printIterable(compiler.environment.consts.items())
         printIterable(compiler.environment.variables.values())
+        
+    input()
 
 
 main()

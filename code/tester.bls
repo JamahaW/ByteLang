@@ -4,11 +4,16 @@
 
 .ptr u16 result 0
 
-start:
-    .inline push 100
-    .inline push 25
+# 3 * (2 + 1)
 
-    add
+start:
+    
+	.inline push 3
+	.inline push 2
+	.inline push 1
+	
+    adds
+	muls
 
     pop result
 
