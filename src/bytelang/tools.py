@@ -62,3 +62,7 @@ class ReprTool:
     @staticmethod
     def iter(iterable: Iterable, *, l_paren: str = "(", sep: str = ", ", r_paren: str = ")") -> str:
         return f"{l_paren}{sep.join(i.__str__() for i in iterable)}{r_paren}"
+
+    @staticmethod
+    def column(iterable: Iterable, sep: str = ": ") -> str:
+        return '\n'.join(f"{index:>3}{sep}{item}" for index, item in enumerate(iterable))

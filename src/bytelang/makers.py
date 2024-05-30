@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import Iterable, Optional, Callable
 
 from .data import Argument, PointerVariable, InstructionUnit, Platform, Package
-from .errors import ByteLangCompileError
 from .handlers import ErrorHandler
 from .loaders import PackageLoader, PlatformLoader
 from .mini import StatementType, Statement
@@ -223,7 +222,11 @@ class CodeGenerator(ErrorHandler):
         name, value = statement.args
         self.consts[name] = value
 
-    def directiveUseInline(self, statement: Statement) -> InstructionUnit:
+    def directiveUseInline(self, statement: Statement) -> Optional[InstructionUnit]:
+        if not statement.args:
+            self.errorStatement("inline must have next instruction", statement)
+            return
+
         lexeme, *args = statement.args
         return self.instruction(Statement(StatementType.INSTRUCTION, lexeme, args, statement.line, statement.source_line), True)
 
@@ -245,13 +248,12 @@ class CodeGenerator(ErrorHandler):
             return
 
         p_value = self.readConst(lexeme)
-        p_bytes = _type.write(p_value)
 
         if not (_type.min <= p_value <= _type.max):
             self.errorStatement(f"({p_value}) NotInRange[{_type.min};{_type.max}]", statement)
             return
 
-        ret = self.env.variables[name] = PointerVariable(name, address, _type, p_bytes)
+        ret = self.env.variables[name] = PointerVariable(name, address, _type, _type.write(p_value))
         self.addr_vars.add(address)
 
         if (p := self.getPlatform()) is None:
@@ -300,7 +302,7 @@ class ProgramGenerator(ErrorHandler):
     def __getHeap(self):
         h_ptr = self.environment.platforms.current.HEAP_PTR
         size = self.environment.start
-        heap_data = h_ptr.write(size + h_ptr.size)  # TODO wtf
+        heap_data = h_ptr.write(size + h_ptr.size)
 
         if size == 0:
             return heap_data
@@ -316,9 +318,10 @@ class ProgramGenerator(ErrorHandler):
         return bytes(heap_data)
 
 
-class Compiler:
+class Compiler(ErrorHandler):
 
     def __init__(self, packages_folder: str, platforms_folder: str):
+        super().__init__(self)
 
         self.packages = PackageLoader(packages_folder)
         """Загрузчик пакетов инструкций"""
@@ -340,17 +343,19 @@ class Compiler:
 
     def run(self, source: str) -> None:
         self.__statements = self.lexical_analyser.run(source)
-
         if self.lexical_analyser.hasErrors():
-            raise ByteLangCompileError(self.lexical_analyser)
+            self.extendLog(self.lexical_analyser)
+            return
 
         self.__instructions = self.code_generator.run(self.__statements)
         if self.code_generator.hasErrors():
-            raise ByteLangCompileError(self.code_generator)
+            self.extendLog(self.code_generator)
+            return
 
         self.__program = self.program_generator.run(self.__instructions)
         if self.program_generator.hasErrors():
-            raise ByteLangCompileError(self.program_generator)
+            self.extendLog(self.code_generator)
+            return
 
     def getProgram(self) -> bytes:
         return self.__program

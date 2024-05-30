@@ -76,7 +76,7 @@ class Platform:
         return f"Platform '{self.NAME}' from '{self.PATH}'"
 
 
-@dataclass(init=True, repr=False, eq=False)
+@dataclass(init=True, repr=False, eq=False, frozen=True)
 class Argument:
     """Аргумент инструкции"""
 
@@ -159,10 +159,27 @@ class InstructionUnit:
 
         if self.inline_last:
             instruction_ptr_value |= (1 << (platform.INST_PTR.size * 8 - 1))
-            sign[-1].pointer = False
+            sign[-1] = Argument(sign[-1].datatype, False)
 
         res = platform.INST_PTR.write(instruction_ptr_value)
 
         res += b''.join(self.args)
 
         return res
+
+    def __str__(self) -> str:
+        sign = list(self.instruction.signature)
+
+        if self.inline_last:
+            sign[-1] = Argument(sign[-1].datatype, False)
+
+        args = ReprTool.iter(
+            (
+                f"<{t}>{b.hex()}"
+                for t, b in zip(sign, self.args)
+            ),
+            l_paren="{",
+            r_paren="}"
+        )
+
+        return f"{self.instruction.name}@{self.instruction.id}{args}"

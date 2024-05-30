@@ -1,6 +1,9 @@
 .platform test_platform
 .package stdpack
-.heap 3 # выделение недостаточного кол-ва памяти
+
+.def HEAP_SIZE 3
+
+.heap HEAP_SIZE
 
 .ptr u16 result 2
 
