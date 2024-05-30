@@ -1,15 +1,13 @@
 .platform test_platform
 .package stdpack
-.heap 3
+.heap 3 # выделение недостаточного кол-ва памяти
 
-.ptr u16 result 0
+.ptr u16 result 2
 
 # 3 * (2 + 1) + 4
 
 start:
-    
-
-	.inline push 200
+	push result
     .inline push 1
     add
 
@@ -20,7 +18,6 @@ start:
 	add
 
     pop result
-
     print result
 
 end:

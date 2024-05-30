@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from bytelang.mini import Statement
+from .mini import Statement
 
 
 class ErrorHandler:
@@ -10,11 +10,11 @@ class ErrorHandler:
 
         self.__errors_messages = list[str]()
 
-    def addErrorMessage(self, message: str) -> None:
+    def errorMessage(self, message: str) -> None:
         self.__errors_messages.append(message)
 
     def errorStatement(self, error_name: str, statement: Statement) -> None:
-        self.addErrorMessage(f"{statement.source_line.strip():32} at {statement.line:3} : [{error_name}]")
+        self.errorMessage(f"{statement.source_line.strip():32} at {statement.line:3} : [{error_name}]")
 
     def __getErrorCount(self) -> int:
         return len(self.__errors_messages)

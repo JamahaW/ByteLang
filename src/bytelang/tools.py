@@ -3,13 +3,13 @@ from pathlib import Path
 from typing import Iterable
 
 
-class FileHelper:
+class FileTool:
     """Обёртка для работы с файлами"""
 
     @staticmethod
     def __forFileExecute(filepath: str, mode: str, func):
         """
-        выполнить `func` для файла
+        Выполнить `func` для файла
         :param func: `lambda f`: ...
         :return: `ret = func(file)`
         """
@@ -57,25 +57,8 @@ class FileHelper:
         return (file.stem for file in Path(folder).glob(f"*.{extension}"))
 
 
-def readPackage(filepath: str) -> tuple[tuple[str, tuple[str]]]:
-    """Прочесть пакет инструкций ByteLang"""
-    ret = list()
-    names_used = set[str]()
+class ReprTool:
 
-    lines = FileHelper.read(filepath).split("\n")
-
-    for line in lines:
-        line = line.split("#")[0].strip()
-
-        if line == "":
-            continue
-
-        name, *signature = line.split()
-
-        if name in names_used:
-            raise KeyError(f"In ByteLang Instruction package '{filepath}' redefinition of '{name}'")
-
-        names_used.add(name)
-        ret.append((name, signature))
-
-    return tuple[tuple[str, tuple[str]]](ret)
+    @staticmethod
+    def iter(iterable: Iterable, *, l_paren: str = "(", sep: str = ", ", r_paren: str = ")") -> str:
+        return f"{l_paren}{sep.join(i.__str__() for i in iterable)}{r_paren}"

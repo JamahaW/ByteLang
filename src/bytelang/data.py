@@ -6,7 +6,7 @@ from typing import Final
 
 from .errors import ByteLangError
 from .primitives import PrimitiveCollection, PrimitiveType
-from .utils import FileHelper
+from .tools import FileTool, ReprTool
 
 
 class Package:
@@ -33,7 +33,7 @@ class Package:
         ret = dict[str, Instruction]()
         _id: int = 0
 
-        for line in FileHelper.read(self.PATH).split("\n"):
+        for line in FileTool.read(self.PATH).split("\n"):
             line = line.split("#")[0].strip()
 
             if line == "":
@@ -53,32 +53,23 @@ class Package:
 class Platform:
     """Характеристики платформы"""
 
-    @dataclass(frozen=True, kw_only=True, eq=False, order=False)
-    class __Params:
-        info: str
-        prog_len: int
-        ptr_prog: int
-        ptr_heap: int
-        ptr_inst: int
-        ptr_type: int
-
     def __init__(self, json_path: str):
         self.PATH: Final[str] = json_path
         """путь к конфигурации платформы"""
         self.NAME: Final[str] = pathlib.Path(json_path).stem
         """имя конфигурации"""
 
-        data: Final[Platform.__Params] = Platform.__Params(**FileHelper.readJSON(self.PATH))
+        data = FileTool.readJSON(self.PATH)
 
-        self.HEAP_PTR = PrimitiveCollection.pointer(data.ptr_heap)
+        self.HEAP_PTR = PrimitiveCollection.pointer(data["ptr_heap"])
         """Указатель кучи"""
-        self.PROG_PTR = PrimitiveCollection.pointer(data.ptr_prog)
+        self.PROG_PTR = PrimitiveCollection.pointer(data["ptr_prog"])
         """Указатель в программе"""
-        self.INST_PTR = PrimitiveCollection.pointer(data.ptr_inst)
+        self.INST_PTR = PrimitiveCollection.pointer(data["ptr_inst"])
         """Указатель в таблице инструкций"""
-        self.TYPE_PTR = PrimitiveCollection.pointer(data.ptr_type)
+        self.TYPE_PTR = PrimitiveCollection.pointer(data["ptr_type"])
         """Маркер типа переменной из кучи"""
-        self.PROGRAM_LEN = data.prog_len
+        self.PROGRAM_LEN = data["prog_len"]
         """Максимальный размер программы"""
 
     def __repr__(self):
@@ -96,7 +87,7 @@ class Argument:
     """Является указателем"""
 
     def __repr__(self):
-        return self.datatype.__str__() + PrimitiveType.POINTER_CHAR if self.pointer else ''
+        return f"{self.datatype}{PrimitiveType.POINTER_CHAR * self.pointer}"
 
     def getPrimitive(self, platform: Platform) -> PrimitiveType:
         return platform.HEAP_PTR if self.pointer else self.datatype
@@ -121,7 +112,7 @@ class Instruction:
         self.package = package
 
     def __repr__(self):
-        return f"{self.package}::{self.name}@{self.id}{self.signature}"
+        return f"{self.package}::{self.name}@{self.id}{ReprTool.iter(self.signature)}"
 
     def getSize(self, platform: Platform, inlined: bool) -> int:
         """Размер скомпилированной инструкции в байтах"""
@@ -172,7 +163,6 @@ class InstructionUnit:
 
         res = platform.INST_PTR.write(instruction_ptr_value)
 
-        for arg_v in self.args:
-            res += arg_v
+        res += b''.join(self.args)
 
         return res

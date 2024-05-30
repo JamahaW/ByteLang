@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from typing import TypeVar, Generic, Final, Optional
 
-from .errors import *
-from .utils import FileHelper
 from .data import Package, Platform
+from .errors import *
+from .tools import FileTool
 
 _T = TypeVar('_T')
 
@@ -17,13 +17,8 @@ class __Loader(Generic[_T]):
         self.current: Optional[_T] = None
         self.loaded: dict[str, Optional[_T]] = {
             name: None
-            for name in FileHelper.getFileNamesByExt(target_folder, file_ext)
+            for name in FileTool.getFileNamesByExt(target_folder, file_ext)
         }
-
-    def get(self) -> _T:
-        if self.current is None:
-            raise ByteLangError(f"need to load {self.EXT} from {self.FOLDER}")
-        return self.current
 
     def use(self, name: str) -> None:
         if name not in self.loaded.keys():
