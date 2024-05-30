@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Iterable
 
 
-class File:
+class FileHelper:
     """Обёртка для работы с файлами"""
 
     @staticmethod
@@ -62,7 +62,7 @@ def readPackage(filepath: str) -> tuple[tuple[str, tuple[str]]]:
     ret = list()
     names_used = set[str]()
 
-    lines = File.read(filepath).split("\n")
+    lines = FileHelper.read(filepath).split("\n")
 
     for line in lines:
         line = line.split("#")[0].strip()

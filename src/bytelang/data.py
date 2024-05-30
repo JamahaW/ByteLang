@@ -6,7 +6,7 @@ from typing import Final
 
 from .errors import ByteLangError
 from .primitives import PrimitiveCollection, PrimitiveType
-from .utils import File
+from .utils import FileHelper
 
 
 class Package:
@@ -33,7 +33,7 @@ class Package:
         ret = dict[str, Instruction]()
         _id: int = 0
 
-        for line in File.read(self.PATH).split("\n"):
+        for line in FileHelper.read(self.PATH).split("\n"):
             line = line.split("#")[0].strip()
 
             if line == "":
@@ -68,7 +68,7 @@ class Platform:
         self.NAME: Final[str] = pathlib.Path(json_path).stem
         """имя конфигурации"""
 
-        data: Final[Platform.__Params] = Platform.__Params(**File.readJSON(self.PATH))
+        data: Final[Platform.__Params] = Platform.__Params(**FileHelper.readJSON(self.PATH))
 
         self.HEAP_PTR = PrimitiveCollection.pointer(data.ptr_heap)
         """Указатель кучи"""
@@ -98,11 +98,8 @@ class Argument:
     def __repr__(self):
         return self.datatype.__str__() + PrimitiveType.POINTER_CHAR if self.pointer else ''
 
-    def getSize(self, platform: Platform) -> int:
-        return (platform.HEAP_PTR if self.pointer else self.datatype).size
-
-    def write(self, platform: Platform, value: int) -> bytes:
-        return (platform.HEAP_PTR if self.pointer else self.datatype).write(value)
+    def getPrimitive(self, platform: Platform) -> PrimitiveType:
+        return platform.HEAP_PTR if self.pointer else self.datatype
 
 
 class Instruction:
@@ -132,8 +129,9 @@ class Instruction:
         ret = platform.INST_PTR.size  # Указатель инструкции
 
         if self.signature:
-            ret += sum(arg.getSize(platform) for arg in self.signature[:-1])  # not-inline аргументы
-            ret += self.signature[-1].datatype.size if inlined else self.signature[-1].getSize(platform)  # inline аргумент
+            ret += sum(arg.getPrimitive(platform).size for arg in self.signature[:-1])  # not-inline аргументы
+            argument = self.signature[-1]
+            ret += self.signature[-1].datatype.size if inlined else argument.getPrimitive(platform).size  # inline аргумент
 
         return ret
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TypeVar, Generic, Final, Optional
 
 from .errors import *
-from .utils import File
+from .utils import FileHelper
 from .data import Package, Platform
 
 _T = TypeVar('_T')
@@ -17,7 +17,7 @@ class __Loader(Generic[_T]):
         self.current: Optional[_T] = None
         self.loaded: dict[str, Optional[_T]] = {
             name: None
-            for name in File.getFileNamesByExt(target_folder, file_ext)
+            for name in FileHelper.getFileNamesByExt(target_folder, file_ext)
         }
 
     def get(self) -> _T:

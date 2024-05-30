@@ -5,9 +5,9 @@ from dataclasses import dataclass
 
 
 class StatementType(enum.Enum):
-    DIRECTIVE = enum.auto()
-    MARK = enum.auto()
-    INSTRUCTION = enum.auto()
+    DIRECTIVE = "directive"
+    MARK = "mark"
+    INSTRUCTION = "instruction"
 
 
 @dataclass(frozen=True, eq=False)
@@ -19,3 +19,8 @@ class Statement:
     args: tuple[str, ...]
     line: int
     source_line: str
+
+    def __str__(self) -> str:
+        mark_index = f"{self.type.value:12}{f'@{self.line}':<5}"
+        lexeme_args = f"{self.lexeme}" + (f"({', '.join(self.args)})" if self.type is not StatementType.MARK else "")
+        return f"{mark_index} {lexeme_args:<32} {self.source_line}"

@@ -4,6 +4,7 @@ import struct
 from typing import Final
 
 
+# TODO enum
 class PrimitiveType:
     """Примитивный тип данных"""
 
