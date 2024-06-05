@@ -7,4 +7,4 @@ class ByteLangError(Exception):
 
 class ByteLangCompileError(ByteLangError):
     def __init__(self, error_handler: ErrorHandler):
-        super().__init__(error_handler.getErrors())
+        super().__init__(error_handler.getLog())

@@ -7,13 +7,14 @@ from .handlers import ErrorHandler
 from .loaders import PackageLoader, PlatformLoader
 from .mini import StatementType, Statement
 from .primitives import PrimitiveCollection
+from .tools import ReprTool
 
 
 # TODO Lexical, Syntax??
-class LexicalAnalyser(ErrorHandler):
+class LexicalAnalyser:
 
-    def __init__(self):
-        super().__init__(self)
+    def __init__(self, error_handler: ErrorHandler):
+        self.__err = error_handler
         self.COMMENT = "#"
         self.MARK = ":"
         self.DIRECTIVE = "."
@@ -22,8 +23,8 @@ class LexicalAnalyser(ErrorHandler):
         ret = list()
 
         for index, source_line in enumerate(source.split("\n")):
-            if (line_no_comment := source_line.split(self.COMMENT)[0].strip()) != "":
-                ret.append(self.__createStatement(index + 1, line_no_comment))
+            if line := source_line.split(self.COMMENT)[0].strip():
+                ret.append(self.__createStatement(index + 1, line))
 
         return ret
 
@@ -43,28 +44,26 @@ class LexicalAnalyser(ErrorHandler):
             _type = StatementType.INSTRUCTION
 
         else:
-            self.errorMessage(f"Invalid Statement: '{lexeme}'\t at Line {index}")
+            self.__err.message(f"Invalid Statement: '{lexeme}'\t at Line {index}")
 
         return Statement(_type, lexeme, args, index, line_clean)
 
 
-class CodeGenerator(ErrorHandler):
+class CodeGenerator:
     BASES_PREFIXES: dict[str, int] = {'x': 16, 'o': 8, 'b': 2}
 
     def __init__(self, environment: Compiler):
-        super().__init__(self)
         self.env = environment
 
+        self.__err = environment.errors
+
         self.__mark_offset: Optional[int] = None
-        self.__ptr_addr_next: int = 0
+        self.__ptr_addr: int = 0
 
         self.__used_heap_directive = False
-        self.__used_package_directive = False
 
-        self.consts = dict[str, str | int]()
-        """значения макро констант"""
-        self.addr_vars = set[int]()
-        """множество адресов существующих переменных"""
+        self.consts = dict[str, str | int | float]()
+        """значения макро констант: def, mark, var_addr"""
 
         self.__DIRECTIVES_TABLE: dict[str, tuple[Optional[int], Callable[[Statement], Optional[InstructionUnit]]]] = {
             "heap": (1, self.directiveSetHeap),
@@ -81,6 +80,27 @@ class CodeGenerator(ErrorHandler):
             StatementType.INSTRUCTION: self.instruction
         }
 
+    def __reset(self) -> None:
+        self.__mark_offset = None
+        self.__ptr_addr = 0
+        self.__used_heap_directive = False
+        self.consts.clear()
+
+    def __addConst(self, statement: Statement, name: str, value: str | int | float) -> bool:
+        """
+        Добавить константное значение
+        :param statement: выражение
+        :param name: идентификатор
+        :param value: значение
+        :return: True если удалось добавить, False при ошибке
+        """
+        if self.__checkNameExist(name):
+            self.__err.nameExist(statement, name)
+            return False
+
+        self.consts[name] = value
+        return True
+
     def getPlatform(self) -> Platform:
         return self.env.platforms.current
 
@@ -88,7 +108,7 @@ class CodeGenerator(ErrorHandler):
         return self.env.packages.current
 
     def run(self, statements: Iterable[Statement]) -> Iterable[InstructionUnit]:
-
+        self.__reset()
         ret = list[InstructionUnit]()
 
         for statement in statements:
@@ -100,11 +120,10 @@ class CodeGenerator(ErrorHandler):
     def readConst(self, lexeme: str) -> Optional[int | float]:
         # лексема - имя константы -> значение константы
         if (ret := self.consts.get(lexeme)) is not None:
-            return self.readConst(ret)
+            if isinstance(ret, (int, float)):
+                return ret
 
-        # лексема - имя переменной -> адрес переменной
-        if (ret := self.env.variables.get(lexeme)) is not None:
-            return ret.address
+            return self.readConst(ret)
 
         # лексема - float
         if "." in lexeme:
@@ -112,59 +131,65 @@ class CodeGenerator(ErrorHandler):
                 return float(lexeme)
 
             except ValueError:
-                self.errorMessage(f"'{lexeme}' is not float")
+                self.__err.invalidType(lexeme, "float")
                 return
 
         # может быть int
         base = 10
 
+        self.__err.begin()
+
         if len(lexeme) > 2 and lexeme[0] == '0' and (base := self.BASES_PREFIXES.get(lexeme[1])) is None:
-            self.errorMessage(f"IncorrectBasePrefix: {lexeme}")
-            return
+            self.__err.message(f"invalid integer base prefix '{lexeme[:2]}' not in {ReprTool.iter(self.BASES_PREFIXES.keys())}")
 
         try:
             return int(lexeme, base)
 
         except ValueError:
-            self.errorMessage(f"'{lexeme}' is not int")
-            return
+            self.__err.invalidType(lexeme, "int")
 
     def mark(self, statement: Statement):
-        if self.__mark_offset is None:
-            self.errorStatement("MustUsePlatform", statement)
-            return
+        self.__err.begin()
 
-        self.consts[statement.lexeme] = self.__mark_offset
+        if self.__mark_offset is None:
+            self.__err.platformNotSelected(statement)
+
+        if not self.__err.begin():
+            self.__addConst(statement, statement.lexeme, self.__mark_offset)
+
+    def __checkNameExist(self, name: str) -> bool:
+        return name in self.consts.keys() or name in self.env.variables.keys() or name in self.getPackage().INSTRUCTIONS.keys()
 
     def instruction(self, statement: Statement, inline_last: bool = False) -> Optional[InstructionUnit]:
-        if (p := self.getPackage()) is None:
-            self.errorStatement("need to select package", statement)
-            return
+        self.__err.begin()
 
-        instruction = p.INSTRUCTIONS.get(statement.lexeme)
+        if (platform := self.getPlatform()) is None:
+            self.__err.platformNotSelected(statement)
+
+        if (package := self.getPackage()) is None:
+            self.__err.packageNotSelected(statement)
+
+        instruction = package.INSTRUCTIONS.get(statement.lexeme)
 
         if instruction is None:
-            self.errorStatement("InvalidInstruction", statement)
+            self.__err.statement("unknown instruction", statement)
+
+        if self.__err.begin():
             return
 
         if instruction.can_inline is False and inline_last is True:
-            self.errorStatement("CantInline", statement)
-            return
+            self.__err.statement("Instruction cannot inlined", statement)
 
-        if len(instruction.signature) != len(statement.args):
-            self.errorStatement("InvalidArgumentCount", statement)
-            return
-
-        if (p := self.getPlatform()) is None:
-            self.errorStatement("need to select platform", statement)
-            return
-
-        self.__mark_offset += instruction.getSize(p, inline_last)
+        if (need := len(instruction.signature)) != len(statement.args):
+            self.__err.invalidArgCount(statement, need)
 
         if (args := self.instructionValidateArg(statement, instruction.signature, inline_last)) is None:
-            self.errorStatement("ErrorArgs", statement)
+            self.__err.statement("args err", statement)
+
+        if self.__err.begin():
             return
 
+        self.__mark_offset += instruction.getSize(platform, inline_last)
         return InstructionUnit(instruction, args, inline_last)
 
     def instructionValidateArg(self, statement: Statement, signature: Iterable[Argument], inline: bool) -> Optional[tuple[bytes, ...]]:
@@ -172,26 +197,26 @@ class CodeGenerator(ErrorHandler):
 
         for index, (arg_state, arg_lexeme) in enumerate(zip(signature, statement.args)):
             if (arg_value := self.readConst(arg_lexeme)) is None:
-                self.errorStatement(f"Could not find value for '{arg_lexeme}'", statement)
+                self.__err.unknownName(arg_lexeme, statement)
                 return
 
-            arg_primitive = arg_state.getPrimitive(self.getPlatform())
+            arg_primitive = arg_state.getPrimitive(self.getPlatform(), inline)
 
             if not (arg_primitive.min <= arg_value <= arg_primitive.max):
-                self.errorStatement(f"InvalidValue {arg_lexeme} ({arg_value}) not in [{arg_primitive.min};{arg_primitive.max}]", statement)
+                self.__err.statement(f"InvalidValue {arg_lexeme} ({arg_value}) not in [{arg_primitive.min};{arg_primitive.max}]", statement)
                 return
 
-            if not inline and arg_state.pointer and arg_value not in self.addr_vars:
-                self.errorStatement("ParsingErrorAddrError", statement)
-                return
+            # if not inline and arg_state.pointer and arg_value not in self.env.variables.keys():
+            #     self.__err.statement(f"count not find variable at {arg_value}", statement)
+            #     return
 
-            ret.append(arg_state.datatype.write(arg_value))
+            ret.append(arg_primitive.write(arg_value))
 
         return tuple(ret)
 
     def directive(self, statement: Statement) -> Optional[InstructionUnit]:
         if (e := self.__DIRECTIVES_TABLE.get(statement.lexeme)) is None:
-            self.errorStatement("InvalidDirective", statement)
+            self.__err.statement("InvalidDirective", statement)
             return
 
         arg_count, func = e
@@ -199,99 +224,95 @@ class CodeGenerator(ErrorHandler):
         if arg_count is None or len(statement.args) == arg_count:
             return func(statement)
 
-        self.errorStatement("InvalidArgCount", statement)
+        self.__err.invalidArgCount(statement, arg_count)
 
     def directiveUsePackage(self, statement: Statement):
-        if self.__used_package_directive:
-            self.errorStatement("PackageAlreadyUsed", statement)
+        if self.getPackage() is not None:
+            self.__err.statement("PackageAlreadyUsed", statement)
             return
 
-        self.__used_package_directive = True
-        self.env.packages.use(statement.args[0])
+        self.env.packages.use(statement.args[0])  # TODO name check
 
     def directiveUsePlatform(self, statement: Statement):
         if self.env.platforms.current is not None:
-            self.errorStatement("PlatformAlreadyUsed", statement)
+            self.__err.statement("PlatformAlreadyUsed", statement)
             return
 
-        self.env.platforms.use(statement.args[0])
+        self.env.platforms.use(statement.args[0])  # TODO name check
         self.__mark_offset = self.getPlatform().HEAP_PTR.size
-        self.__ptr_addr_next = int(self.__mark_offset)
+        self.__ptr_addr = int(self.__mark_offset)
 
     def directiveDefineMacro(self, statement):
         name, value = statement.args
-        self.consts[name] = value
+        self.__addConst(statement, name, value)
 
     def directiveUseInline(self, statement: Statement) -> Optional[InstructionUnit]:
         if not statement.args:
-            self.errorStatement("inline must have next instruction", statement)
-            return
+            self.__err.statement("inline must have next instruction", statement)
 
         lexeme, *args = statement.args
         return self.instruction(Statement(StatementType.INSTRUCTION, lexeme, args, statement.line, statement.source_line), True)
 
     def directiveInitPointer(self, statement: Statement):
-        _type, name, lexeme = statement.args
-
-        if (_type := PrimitiveCollection.get(_type)) is None:
-            self.errorStatement("InvalidType", statement)
-            return
-
-        address = self.__ptr_addr_next
-
-        if (address + _type.size) > self.env.start:
-            self.errorStatement("AddressAfterHeap", statement)
-            return
-
-        if name in self.env.variables:
-            self.errorStatement("RedefineVariable", statement)
-            return
-
-        p_value = self.readConst(lexeme)
-
-        if not (_type.min <= p_value <= _type.max):
-            self.errorStatement(f"({p_value}) NotInRange[{_type.min};{_type.max}]", statement)
-            return
-
-        ret = self.env.variables[name] = PointerVariable(name, address, _type, _type.write(p_value))
-        self.addr_vars.add(address)
+        self.__err.begin()
 
         if (p := self.getPlatform()) is None:
-            self.errorStatement("need to select platform", statement)
+            self.__err.platformNotSelected(statement)
+
+        _type, name, lexeme = statement.args
+
+        if self.__checkNameExist(name):
+            self.__err.nameExist(statement, name)
+
+        if (_type := PrimitiveCollection.get(_type)) is None:
+            self.__err.statement("InvalidType", statement)
+
+        if self.__err.begin():
             return
 
-        self.__ptr_addr_next += ret.getSize(p)
+        if (self.__ptr_addr + _type.size) > self.env.start:
+            self.__err.statement("AddressAfterHeap", statement)
+
+        if (p_value := self.readConst(lexeme)) is None:
+            self.__err.statement("unknown value", statement)
+
+        if self.__err.begin():
+            return
+
+        if not (_type.min <= p_value <= _type.max):
+            self.__err.statement(f"({p_value}) NotInRange[{_type.min};{_type.max}]", statement)
+            return
+
+        if self.__addConst(statement, name, self.__ptr_addr):
+            ret = self.env.variables[self.__ptr_addr] = PointerVariable(name, self.__ptr_addr, _type, _type.write(p_value))
+            self.__ptr_addr += ret.getSize(p)
 
     def directiveSetHeap(self, statement: Statement):
+        if (p := self.getPlatform()) is None:
+            self.__err.platformNotSelected(statement)
+
         if self.__used_heap_directive:
-            self.errorStatement("ReinitHeap", statement)
-            return
+            self.__err.statement("ReinitHeap", statement)
 
         self.__used_heap_directive = True
         h = self.env.start = self.readConst(statement.args[0])
 
-        if (p := self.getPlatform()) is None:
-            self.errorStatement("need to select platform", statement)
-            return
-
-        self.__mark_offset += h
-
         if not (0 < h < p.HEAP_PTR.max):
-            self.errorStatement("InvalidHeapSize", statement)
+            self.__err.statement("InvalidHeapSize", statement)
 
 
-class ProgramGenerator(ErrorHandler):
+class ProgramGenerator:
     """Компилятор в байткод"""
 
     def __init__(self, environment: Compiler):
-        super().__init__(self)
         self.environment = environment
+        self.__err = environment.errors
 
     def run(self, statementsUnits: Iterable[InstructionUnit]) -> Optional[bytes]:
         ret = self.__getHeap() + self.__getProgram(statementsUnits)
 
         if (L := len(ret)) > (max_len := self.environment.platforms.current.PROGRAM_LEN):
-            self.errorMessage(f"Program too long ({L}/{max_len})")
+            self.__err.message(f"Program too long ({L}/{max_len})")
             return
 
         return ret
@@ -310,18 +331,17 @@ class ProgramGenerator(ErrorHandler):
         heap_data = list(heap_data + bytes(size))
 
         for var in self.environment.variables.values():
-            compiler = self.environment
-            var_bytes = list(var.write(compiler.platforms.current))
+            var_bytes = list(var.write(self.environment.platforms.current))
             for i, b in enumerate(var_bytes):
                 heap_data[i + var.address] = b
 
         return bytes(heap_data)
 
 
-class Compiler(ErrorHandler):
+class Compiler:
 
     def __init__(self, packages_folder: str, platforms_folder: str):
-        super().__init__(self)
+        self.errors = ErrorHandler(self)
 
         self.packages = PackageLoader(packages_folder)
         """Загрузчик пакетов инструкций"""
@@ -330,10 +350,10 @@ class Compiler(ErrorHandler):
 
         self.start: int = 0
         """Индекс байта начала кода"""
-        self.variables = dict[str, PointerVariable]()
-        """переменные"""
+        self.variables = dict[int, PointerVariable]()
+        """переменные: индекс - данные"""
 
-        self.lexical_analyser = LexicalAnalyser()
+        self.lexical_analyser = LexicalAnalyser(self.errors)
         self.code_generator = CodeGenerator(self)
         self.program_generator = ProgramGenerator(self)
 
@@ -341,21 +361,65 @@ class Compiler(ErrorHandler):
         self.__instructions: Optional[Iterable[InstructionUnit]] = None
         self.__program: Optional[bytes] = None
 
+    def __reset(self):
+        self.errors.reset()
+        self.start = 0
+        self.variables.clear()
+        self.__statements = None
+        self.__instructions = None
+        self.__program = None
+        self.packages.current = None
+        self.platforms.current = None
+
     def run(self, source: str) -> None:
+        self.__reset()
+
         self.__statements = self.lexical_analyser.run(source)
-        if self.lexical_analyser.hasErrors():
-            self.extendLog(self.lexical_analyser)
+        if self.errors.has():
             return
 
         self.__instructions = self.code_generator.run(self.__statements)
-        if self.code_generator.hasErrors():
-            self.extendLog(self.code_generator)
+        if self.errors.has():
             return
 
         self.__program = self.program_generator.run(self.__instructions)
-        if self.program_generator.hasErrors():
-            self.extendLog(self.code_generator)
+        if self.errors.has():
             return
+
+    def getCompileLog(
+            self, *,
+            instructions: bool = False,
+            statements: bool = False,
+            code: bool = False,
+            constants: bool = False,
+            variables: bool = False,
+            program: bool = False,
+            sizes: bool = False
+    ) -> str:
+        m = list[tuple[str, Iterable]]()
+
+        if sizes:
+            m.append(("size", (f"program: {len(self.__program)}",)))
+
+        if instructions:
+            m.append(("instructions package", self.packages.current.INSTRUCTIONS.values()))
+
+        if statements:
+            m.append(("statements", self.getStatements()))
+
+        if code:
+            m.append(("instructions program compiled", self.getInstructions()))
+
+        if constants:
+            m.append(("constants", self.code_generator.consts.items()))
+
+        if variables:
+            m.append(("variables", self.variables.values()))
+
+        if program:
+            m.append(("program", (f"{byte:02X}" for byte in self.getProgram())))
+
+        return "\n".join((ReprTool.headed(header, items) for header, items in m))
 
     def getProgram(self) -> bytes:
         return self.__program

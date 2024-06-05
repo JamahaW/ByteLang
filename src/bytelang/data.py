@@ -89,8 +89,8 @@ class Argument:
     def __repr__(self):
         return f"{self.datatype}{PrimitiveType.POINTER_CHAR * self.pointer}"
 
-    def getPrimitive(self, platform: Platform) -> PrimitiveType:
-        return platform.HEAP_PTR if self.pointer else self.datatype
+    def getPrimitive(self, platform: Platform, inlined: bool = False) -> PrimitiveType:
+        return self.datatype if (not self.pointer or inlined) else platform.HEAP_PTR
 
 
 class Instruction:

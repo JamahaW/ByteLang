@@ -1,0 +1,13 @@
+.platform test_platform
+.package stdpack
+
+.heap 6
+
+.ptr u16 a 25
+.ptr u16 b 50
+
+push a
+push b
+add
+pop a
+print a

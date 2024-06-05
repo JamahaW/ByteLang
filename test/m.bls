@@ -1,0 +1,8 @@
+.platform test_platform
+.package stdpack
+
+.heap 5
+.ptr u32 a 0xff_ff_ff_ff
+
+print a
+.inline print 0x77777777

@@ -64,5 +64,10 @@ class ReprTool:
         return f"{l_paren}{sep.join(i.__str__() for i in iterable)}{r_paren}"
 
     @staticmethod
-    def column(iterable: Iterable, sep: str = ": ") -> str:
-        return '\n'.join(f"{index:>3}{sep}{item}" for index, item in enumerate(iterable))
+    def column(iterable: Iterable, *, sep: str = ": ", begin: int = 0) -> str:
+        return '\n'.join(f"{(index + begin):>3}{sep}{item}" for index, item in enumerate(iterable))
+
+    @staticmethod
+    def headed(name: str, i: Iterable, *, length: int = 120, fill: str = "-") -> str:
+        return f"{f' <<< {name} >>> ':{fill}^{length}}\n{ReprTool.column(i)}\n"
+
