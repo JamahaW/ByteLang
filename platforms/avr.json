@@ -1,5 +1,5 @@
 {
-  "info": "тест-платформа для отладки",
+  "info": "VM for AVR (atmega328)",
   "prog_len": 512,
   "ptr_prog": 2,
   "ptr_heap": 1,

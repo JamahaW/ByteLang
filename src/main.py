@@ -1,30 +1,24 @@
 from bytelang.makers import Compiler
-from bytelang.tools import FileTool, ReprTool
+from bytelang.tools import FileTool
+from bytelang.vm.interpreter import Interpreter
 
 compiler = Compiler("../packages/", "../platforms/")
+interpreter = Interpreter()
 
 
-def getCompilerOutput(source: str) -> str:
-    compiler.run(source)
-
-    if compiler.errors.has():
-        return compiler.errors.getLog()
-
-    return compiler.getCompileLog(code=True, constants=True, variables=True, sizes=True, program=True)
-
-
-def test(filename: str, out: str):
-    FileTool.save(f"../test/{out}.txt", getCompilerOutput(FileTool.read(f"../test/{filename}.bls")))
+def test(filename: str):
+    compiler.run(FileTool.read(f"../test/{filename}.bls"))
+    FileTool.save(f"../test/{filename}.txt", (
+        compiler.errors.getLog()
+        if compiler.errors.has() else
+        compiler.getCompileLog(code=True, constants=True, variables=True, info=True, program=True)
+    ))
 
 
 def main():
-    test_files = tuple(FileTool.getFileNamesByExt("../test/", "bls"))
-    print(ReprTool.column(test_files))
-
-    # test("m", "m")
-
-    for file in test_files:
-        test(file, file)
+    test("calcexpr")
+    program = compiler.getProgram()
+    interpreter.run(program, compiler.platforms.current)
 
 
 main()

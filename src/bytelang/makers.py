@@ -394,12 +394,19 @@ class Compiler:
             constants: bool = False,
             variables: bool = False,
             program: bool = False,
-            sizes: bool = False
+            info: bool = False
     ) -> str:
         m = list[tuple[str, Iterable]]()
 
-        if sizes:
-            m.append(("size", (f"program: {len(self.__program)}",)))
+        if info:
+            p = self.platforms.current
+            p_len = len(self.__program)
+            fill = 100.0 * p_len / p.PROGRAM_LEN
+
+            m.append(("info", (
+                f"program: {p_len} / {p.PROGRAM_LEN} ({fill:.2f}%)",
+                f"platform: {p.__str__()}"
+            )))
 
         if instructions:
             m.append(("instructions package", self.packages.current.INSTRUCTIONS.values()))
@@ -417,7 +424,7 @@ class Compiler:
             m.append(("variables", self.variables.values()))
 
         if program:
-            m.append(("program", (f"{byte:02X}" for byte in self.getProgram())))
+            m.append(("program", (f"{byte:02X}  {byte:08b}" for byte in self.getProgram())))
 
         return "\n".join((ReprTool.headed(header, items) for header, items in m))
 

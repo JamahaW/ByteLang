@@ -34,7 +34,7 @@ class PrimitiveType:
         self.max = 2 ** (8 * self.size - int(signed)) - 1
 
     def __repr__(self):
-        return f"Primitive({self.name})@{self.id}({self.size}) -> {self.format} [{self.min}; {self.max}]"
+        return f"Primitive({self.name})@{self.size} -> {self.format} [{self.min}; {self.max}]"
 
     def __str__(self):
         return self.name
@@ -42,8 +42,14 @@ class PrimitiveType:
     def write(self, value: int | float) -> bytes:
         return self.__packer.pack(value)
 
-    def read(self, data: bytes) -> float | str | int:
-        return self.__packer.unpack(data)[0]
+    def read(self, buffer: bytes) -> float | str | int:
+        return self.__packer.unpack(buffer)[0]
+
+    def readFrom(self, buffer: bytes, index: int) -> float | int | str:
+        return self.__packer.unpack_from(buffer, index)[0]
+
+    def writeTo(self, buffer: bytes, index: int, value: int | float | str) -> None:
+        self.__packer.pack_into(buffer, index, value)
 
 
 class PrimitiveCollection:
@@ -61,13 +67,27 @@ class PrimitiveCollection:
     FLOAT32 = PrimitiveType('f32', 'f', 0xA, True)
     FLOAT64 = PrimitiveType('f64', 'd', 0xB, True)
 
-    PRIMITIVES = {"char": None, "bool": BOOL, "i8": INT8, "u8": UINT8, "i16": INT16, "u16": UINT16, "i32": INT32, "u32": UINT32, "i64": INT64, "u64": UINT64, "f32": FLOAT32, "f64": FLOAT64}
+    PRIMITIVES_NAME = {"char": None, "bool": BOOL, "i8": INT8, "u8": UINT8, "i16": INT16, "u16": UINT16, "i32": INT32, "u32": UINT32, "i64": INT64, "u64": UINT64, "f32": FLOAT32, "f64": FLOAT64}
+
+    PRIMITIVES_ID = {
+        1: BOOL,
+        2: INT8,
+        3: UINT8,
+        4: INT16,
+        5: UINT16,
+        6: INT32,
+        7: UINT32,
+        8: INT64,
+        9: UINT64,
+        10: FLOAT32,
+        11: FLOAT64
+    }
 
     @classmethod
     def get(cls, typename: str) -> PrimitiveType:
         """Получить экземпляр примитивного типа по идентификатору"""
-        return cls.PRIMITIVES.get(typename)
+        return cls.PRIMITIVES_NAME.get(typename)
 
     @classmethod
     def pointer(cls, width: int) -> PrimitiveType:
-        return cls.PRIMITIVES.get(f"u{width * 8}")
+        return cls.PRIMITIVES_NAME.get(f"u{width * 8}")

@@ -72,12 +72,37 @@ class Platform:
         self.PROGRAM_LEN = data["prog_len"]
         """Максимальный размер программы"""
 
+        self.INLINE_BIT = 1 << (self.INST_PTR.size * 8 - 1)
+        self.INSTRUCTION_INDEX_MASK = ~self.INLINE_BIT
+
     def __repr__(self):
         return f"Platform '{self.NAME}' from '{self.PATH}'"
+
+    def __str__(self):
+        m = (
+            ("heap", self.HEAP_PTR),
+            ("program", self.PROG_PTR),
+            ("instruction", self.INST_PTR),
+            ("typeID", self.TYPE_PTR),
+        )
+        r = ReprTool.column(
+            (f"{name}: {_type}" for name, _type in m),
+            sep=" - ",
+            intend=1
+        )
+        return f"platform {self.NAME} from '{self.PATH}'\n{r}"
 
 
 @dataclass(init=True, repr=False, eq=False, frozen=True)
 class Argument:
+
+    @classmethod
+    def fromStr(cls, string: str) -> Argument:
+        return Argument(
+            PrimitiveCollection.PRIMITIVES_NAME[string.rstrip(PrimitiveType.POINTER_CHAR)],
+            PrimitiveType.POINTER_CHAR == string[-1]
+        )
+
     """Аргумент инструкции"""
 
     datatype: PrimitiveType
@@ -158,7 +183,7 @@ class InstructionUnit:
         sign = list(self.instruction.signature)
 
         if self.inline_last:
-            instruction_ptr_value |= (1 << (platform.INST_PTR.size * 8 - 1))
+            instruction_ptr_value |= platform.INLINE_BIT
             sign[-1] = Argument(sign[-1].datatype, False)
 
         res = platform.INST_PTR.write(instruction_ptr_value)

@@ -1,0 +1,28 @@
+.platform avr
+.package math_test
+
+.heap 3
+.ptr u16 ret 0
+
+# x * x * x * x
+
+__main__:
+    input ret
+
+    push ret
+    push ret
+    mul
+
+    push ret
+    push ret
+    mul
+
+    mul
+
+
+    pop ret
+
+    print ret
+
+__end__:
+    exit 0

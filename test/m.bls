@@ -1,4 +1,4 @@
-.platform test_platform
+.platform avr
 .package stdpack
 
 .heap 5

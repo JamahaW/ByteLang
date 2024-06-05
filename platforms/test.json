@@ -1,0 +1,8 @@
+{
+  "info": "VM test",
+  "prog_len": 1000,
+  "ptr_prog": 8,
+  "ptr_heap": 4,
+  "ptr_inst": 2,
+  "ptr_type": 1
+}

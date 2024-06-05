@@ -53,8 +53,8 @@ class FileTool:
         return cls.__forFileExecute(filepath, "r", lambda file: json.load(file))
 
     @classmethod
-    def getFileNamesByExt(cls, folder: str, extension: str) -> Iterable[str]:
-        return (file.stem for file in Path(folder).glob(f"*.{extension}"))
+    def getFileNamesByExt(cls, folder: str, extension: str) -> tuple[str]:
+        return tuple(file.stem for file in Path(folder).glob(f"*.{extension}"))
 
 
 class ReprTool:
@@ -64,8 +64,8 @@ class ReprTool:
         return f"{l_paren}{sep.join(i.__str__() for i in iterable)}{r_paren}"
 
     @staticmethod
-    def column(iterable: Iterable, *, sep: str = ": ", begin: int = 0) -> str:
-        return '\n'.join(f"{(index + begin):>3}{sep}{item}" for index, item in enumerate(iterable))
+    def column(iterable: Iterable, *, sep: str = ": ", begin: int = 0, intend: int = 0) -> str:
+        return '\n'.join(f"{'  ' * intend}{(index + begin):>3}{sep}{item}" for index, item in enumerate(iterable))
 
     @staticmethod
     def headed(name: str, i: Iterable, *, length: int = 120, fill: str = "-") -> str:
