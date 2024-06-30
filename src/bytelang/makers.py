@@ -1,16 +1,23 @@
 from __future__ import annotations
 
-from typing import Iterable, Optional, Callable
+from typing import Callable
+from typing import Iterable
+from typing import Optional
 
-from .data import Argument, PointerVariable, InstructionUnit, Platform, Package
+from .data import Argument
+from .data import InstructionUnit
+from .data import Package
+from .data import Platform
+from .data import PointerVariable
 from .handlers import ErrorHandler
-from .loaders import PackageLoader, PlatformLoader
-from .mini import StatementType, Statement
+from .loaders import PackageLoader
+from .loaders import PlatformLoader
+from .mini import Statement
+from .mini import StatementType
 from .primitives import PrimitiveCollection
 from .tools import ReprTool
 
 
-# TODO Lexical, Syntax??
 class LexicalAnalyser:
 
     def __init__(self, error_handler: ErrorHandler):

@@ -1,8 +1,13 @@
-from typing import Optional, Callable
+from typing import Callable
+from typing import Optional
 
-from ..data import Platform, Argument
-from ..primitives import PrimitiveType, PrimitiveCollection
+from ..data import Argument
+from ..data import Platform
+from ..primitives import PrimitiveCollection
+from ..primitives import PrimitiveType
 
+
+# TODO multiply args
 
 class InstructionVM:
 

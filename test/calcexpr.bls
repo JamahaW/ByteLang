@@ -4,7 +4,6 @@
 .heap 3
 .ptr u16 ret 0
 
-# x * x * x * x
 
 __main__:
     input ret
@@ -12,13 +11,6 @@ __main__:
     push ret
     push ret
     mul
-
-    push ret
-    push ret
-    mul
-
-    mul
-
 
     pop ret
 

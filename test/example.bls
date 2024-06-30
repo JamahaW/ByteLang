@@ -1,0 +1,52 @@
+cmp i16* i16* # <=>
+
+goto_eq u16 # ==
+goto_ne u16 # !=
+goto_gt u16 # >
+goto_ge u16 # >=
+goto_ls u16 # <
+goto_le u16 # <=
+
+exit u8
+
+push i16*
+pop  i16*
+
+print i32*
+input i32*
+
+swap i16* i16*
+
+add
+
+
+# Пример из будущего
+# Циклический алгоритм расчёта числа фибоначчи
+
+.xxx basic_avr # Использовать* basic_avr (конфигурация VM, пакет команд, версия байткода и т.п.)
+
+# heap вычисляется автоматически
+
+.ptr u8 i, n
+.ptr u16 a, b = 1, c
+
+input n
+
+loop:
+
+    # c = a + b
+    push a
+    push b
+    add
+    pop c
+
+    swap a, b
+
+    # (i < n):
+    cmp i, n
+    goto_ls loop
+
+print c
+
+exit 0
+

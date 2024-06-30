@@ -1,8 +1,12 @@
 from __future__ import annotations
 
-from typing import TypeVar, Generic, Final, Optional
+from typing import Final
+from typing import Generic
+from typing import Optional
+from typing import TypeVar
 
-from .data import Package, Platform
+from .data import Package
+from .data import Platform
 from .errors import *
 from .tools import FileTool
 
