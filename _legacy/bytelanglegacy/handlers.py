@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from .mini import Statement
-from .tools import ReprTool
+from bytelang.tools import ReprTool
 
 
 class ErrorHandler:

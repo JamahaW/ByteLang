@@ -1,0 +1,9 @@
+{
+  "platform": "avr",
+  "packages": [
+    "base",
+    "io",
+    "stack",
+    "math"
+  ]
+}

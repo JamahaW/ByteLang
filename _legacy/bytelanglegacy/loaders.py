@@ -8,7 +8,7 @@ from typing import TypeVar
 from .data import Package
 from .data import Platform
 from .errors import *
-from .tools import FileTool
+from bytelang.tools import FileTool
 
 _T = TypeVar('_T')
 

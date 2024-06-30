@@ -7,11 +7,9 @@ from typing import Final
 from .errors import ByteLangError
 from .primitives import PrimitiveCollection
 from .primitives import PrimitiveType
-from .tools import FileTool
-from .tools import ReprTool
+from bytelang.tools import FileTool
+from bytelang.tools import ReprTool
 
-
-# TODO make base class Package & Platform ?
 
 class Package:
     """Пакет инструкций"""

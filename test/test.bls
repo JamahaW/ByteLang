@@ -1,0 +1,16 @@
+.env test
+
+.ptr u16 x 0
+
+__start__:
+
+    input x
+
+    push x
+    push x
+    mul
+
+    print x
+
+__end__:
+    exit 0

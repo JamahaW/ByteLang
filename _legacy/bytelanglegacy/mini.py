@@ -3,7 +3,7 @@ from __future__ import annotations
 import enum
 from dataclasses import dataclass
 
-from .tools import ReprTool
+from bytelang.tools import ReprTool
 
 
 class StatementType(enum.Enum):

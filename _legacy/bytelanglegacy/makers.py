@@ -15,7 +15,7 @@ from .loaders import PlatformLoader
 from .mini import Statement
 from .mini import StatementType
 from .primitives import PrimitiveCollection
-from .tools import ReprTool
+from bytelang.tools import ReprTool
 
 
 class LexicalAnalyser:
