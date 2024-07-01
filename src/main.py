@@ -12,5 +12,4 @@ if __name__ == '__main__':
     compiler.setProfilesFolder(data_folder / "profiles")
     compiler.setPackagesFolder(data_folder / "packages")
 
-    # p = compiler.packageRegistry.get("math")
-    print(ReprTool.column(compiler.primitiveTypeRegistry.getValues()))
+    print(ReprTool.column(compiler.environmentRegistry.get("test_env").instructions.values()))

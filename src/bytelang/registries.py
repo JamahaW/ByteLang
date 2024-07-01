@@ -1,6 +1,7 @@
 """
 Различные Реестры контента
 """
+
 from abc import ABC
 from abc import abstractmethod
 from os import PathLike
@@ -14,6 +15,7 @@ from typing import TypeVar
 
 from bytelang.content import BasicInstruction
 from bytelang.content import Environment
+from bytelang.content import EnvironmentInstruction
 from bytelang.content import InstructionArgument
 from bytelang.content import Package
 from bytelang.content import PrimitiveType
@@ -172,15 +174,15 @@ class CatalogRegistry(BasicRegistry[str, _T]):
 
 class ProfileRegistry(CatalogRegistry[Profile]):
 
-    def __init__(self, file_ext: str, primitiveTypeRegistry: PrimitiveTypeRegistry):
+    def __init__(self, file_ext: str, primitives: PrimitiveTypeRegistry):
         super().__init__(file_ext)
-        self.__primitiveTypeRegistry = primitiveTypeRegistry
+        self.__primitive_type_registry = primitives
 
     def _load(self, filepath: str, name: str) -> Optional[Profile]:
         data = FileTool.readJSON(filepath)
 
         def get_type(t: str) -> PrimitiveType:
-            return self.__primitiveTypeRegistry.getBySize(data[t])
+            return self.__primitive_type_registry.getBySize(data[t])
 
         return Profile(
             parent=filepath,
@@ -196,9 +198,9 @@ class ProfileRegistry(CatalogRegistry[Profile]):
 class PackageRegistry(CatalogRegistry[Package]):
     POINTER_CHAR: Final[str] = "*"
 
-    def __init__(self, file_ext: str, primitiveTypeRegistry: PrimitiveTypeRegistry):
+    def __init__(self, file_ext: str, primitives: PrimitiveTypeRegistry):
         super().__init__(file_ext)
-        self.__primitiveTypeRegistry = primitiveTypeRegistry
+        self.__primitive_type_registry = primitives
 
     def _load(self, filepath: str, name: str) -> Optional[Package]:
         return Package(
@@ -235,7 +237,7 @@ class PackageRegistry(CatalogRegistry[Package]):
     def __parseArgument(self, package_name: str, name: str, index: int, arg_lexeme: str) -> InstructionArgument:
         is_pointer = arg_lexeme[-1] == self.POINTER_CHAR
 
-        if (primitive := self.__primitiveTypeRegistry.get(arg_lexeme.rstrip(self.POINTER_CHAR))) is None:
+        if (primitive := self.__primitive_type_registry.get(arg_lexeme.rstrip(self.POINTER_CHAR))) is None:
             raise ValueError(f"Unknown primitive '{arg_lexeme}' at {index} in {package_name}::{name}")
 
         return InstructionArgument(
@@ -248,39 +250,43 @@ class EnvironmentsRegistry(CatalogRegistry[Environment]):
 
     def __init__(self, file_ext: str, profiles: ProfileRegistry, packages: PackageRegistry) -> None:
         super().__init__(file_ext)
-        self.__profileRegistry = profiles
-        self.__packageRegistry = packages
+        self.__profile_registry = profiles
+        self.__package_registry = packages
 
     def _load(self, filepath: str, name: str) -> _T:
         data = FileTool.readJSON(filepath)
-        # TODO
-        #  реализовать нормально
-        #  Из пакетов формируется единый блок инструкций окружения
+        profile = self.__profile_registry.get(data["profile"])
 
         return Environment(
             parent=filepath,
             name=name,
-            profile=self.__profileRegistry.get(data["profile"]),
-            instructions=tuple(data["packages"])
+            profile=profile,
+            instructions=self.__processPackages(profile, data["packages"])
         )
 
+    def __processPackages(self, profile: Profile, packages_names: Iterable[str]) -> dict[str, EnvironmentInstruction]:
+        ret = dict[str, EnvironmentInstruction]()
+        index: int = 0
 
-if __name__ == '__main__':
-    fp = r"A:\Projects\ByteLang\registries_data\primitive_types.json"
+        for package_name in packages_names:
+            for ins in self.__package_registry.get(package_name).instructions:
+                if (ex_ins := ret.get(ins.name)) is not None:
+                    raise ValueError(f"{ins} - overload not possible ({ex_ins} defined already)")
 
-    prim = PrimitiveTypeRegistry()
-    prim.setFile(fp)
+                ret[ins.name] = EnvironmentInstruction(
+                    parent=profile.name,
+                    name=ins.name,
+                    index=index,
+                    package=package_name,
+                    arguments=tuple(
+                        InstructionArgument(
+                            primitive=profile.pointer_heap if arg.is_pointer else arg.primitive,
+                            is_pointer=arg.is_pointer
+                        )
+                        for arg in ins.arguments
+                    )
+                )
 
-    # prof = ProfileRegistry("json", prim)
-    # prof.setFolder(r"A:\Projects\ByteLang\registries_data\profiles")
-    #
-    # av = prof.get("avr")
-    #
-    # print(ReprTool.column(av.__dict__.items()))
+                index += 1
 
-    pack = PackageRegistry("blp", prim)
-    pack.setFolder(r"A:\Projects\ByteLang\registries_data\packages")
-
-    p1 = pack.get("io")
-
-    print(p1)
+        return ret
