@@ -1,5 +1,5 @@
 {
-  "platform": "avr",
+  "profile": "avr",
   "packages": [
     "base",
     "io",
