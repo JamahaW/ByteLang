@@ -3,6 +3,7 @@
 """
 from abc import ABC
 from abc import abstractmethod
+from os import PathLike
 from pathlib import Path
 from struct import Struct
 from typing import Final
@@ -18,7 +19,6 @@ from bytelang.content import Package
 from bytelang.content import PrimitiveType
 from bytelang.content import Profile
 from bytelang.tools import FileTool
-from bytelang.tools import ReprTool
 
 _T = TypeVar("_T")  # content Type
 _K = TypeVar("_K")  # content Key
@@ -32,6 +32,9 @@ class BasicRegistry(ABC, Generic[_K, _T]):
 
     def __init__(self):
         self._data = dict[_K, _T]()
+
+    def getValues(self) -> Iterable[_T]:
+        return self._data.values()
 
     @abstractmethod
     def get(self, __key: _K) -> Optional[_T]:
@@ -51,11 +54,8 @@ class JSONFileRegistry(BasicRegistry[str, _T], Generic[_R, _T]):
         super().__init__()
         self._filepath: Optional[Path] = None
 
-    def setFile(self, filepath: str) -> None:
+    def setFile(self, filepath: PathLike | str) -> None:
         filepath = Path(filepath)
-
-        if not filepath.is_file():
-            raise ValueError(f"Not a File: {filepath}")
 
         self._filepath = filepath
         self._data.update(
@@ -66,7 +66,6 @@ class JSONFileRegistry(BasicRegistry[str, _T], Generic[_R, _T]):
         )
 
     def get(self, __key: str) -> Optional[_T]:
-
         if self._filepath is None:
             raise ValueError("Must select File")
 
@@ -131,6 +130,7 @@ class PrimitiveTypeRegistry(JSONFileRegistry[_PrimitiveRaw, PrimitiveType]):
         return ret
 
 
+# TODO setFolder передать маску с расширением файла
 class CatalogRegistry(BasicRegistry[str, _T]):
     """
     Каталоговый Реестр[T] (ищет файл по имени в каталоге)
@@ -141,7 +141,7 @@ class CatalogRegistry(BasicRegistry[str, _T]):
         self.__FILE_EXT: Final[str] = file_ext
         self.__folder: Optional[Path] = None
 
-    def setFolder(self, folder: str) -> None:
+    def setFolder(self, folder: PathLike | str) -> None:
         """Установить каталог для загрузки контента"""
         folder = Path(folder)
 
@@ -284,5 +284,3 @@ if __name__ == '__main__':
     p1 = pack.get("io")
 
     print(p1)
-
-

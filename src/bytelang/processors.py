@@ -1,3 +1,4 @@
+from os import PathLike
 from typing import Optional
 
 from bytelang.registries import EnvironmentsRegistry
@@ -9,8 +10,6 @@ from bytelang.registries import ProfileRegistry
 class Compiler:
     """
     API byteLang
-    Позволяет задать пути к пакетам инструкций, профилям, Окружениям
-    Получить программу, ошибки, логи
     """
 
     def __init__(self) -> None:
@@ -30,28 +29,28 @@ class Compiler:
         """
         pass
 
-    def setPrimitivesFile(self, filepath: str) -> None:
+    def setPrimitivesFile(self, filepath: PathLike | str) -> None:
         """
         Указать путь к файлу настройки примитивных типов
         :param filepath:
         """
         self.primitiveTypeRegistry.setFile(filepath)
 
-    def setEnvironmentsFolder(self, folder: str) -> None:
+    def setEnvironmentsFolder(self, folder: PathLike | str) -> None:
         """
         Указать путь к папке окружений
         :param folder:
         """
         self.environmentRegistry.setFolder(folder)
 
-    def setPackagesFolder(self, folder: str) -> None:
+    def setPackagesFolder(self, folder: PathLike | str) -> None:
         """
         Указать путь к папке пакетов инструкций
         :param folder:
         """
         self.packageRegistry.setFolder(folder)
 
-    def setProfilesFolder(self, folder: str) -> None:
+    def setProfilesFolder(self, folder: PathLike | str) -> None:
         """
         Указать путь к папке профилей
         :param folder:
