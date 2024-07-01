@@ -39,7 +39,7 @@ class BasicRegistry(ABC, Generic[_K, _T]):
         return self._data.values()
 
     @abstractmethod
-    def get(self, __key: _K) -> Optional[_T]:
+    def get(self, __key: _K) -> _T:
         """
         Получить контент
         :param __key:
@@ -152,7 +152,7 @@ class CatalogRegistry(BasicRegistry[str, _T]):
 
         self.__folder = folder
 
-    def get(self, name: str) -> Optional[_T]:
+    def get(self, name: str) -> _T:
         if self.__folder is None:
             raise ValueError(f"Cannot get {name}! Must set folder")
 
@@ -163,7 +163,7 @@ class CatalogRegistry(BasicRegistry[str, _T]):
         return ret
 
     @abstractmethod
-    def _load(self, filepath: str, name: str) -> Optional[_T]:
+    def _load(self, filepath: str, name: str) -> _T:
         """
         Загрузить контент из файла
         :param filepath: путь к этому контенту
@@ -178,7 +178,7 @@ class ProfileRegistry(CatalogRegistry[Profile]):
         super().__init__(file_ext)
         self.__primitive_type_registry = primitives
 
-    def _load(self, filepath: str, name: str) -> Optional[Profile]:
+    def _load(self, filepath: str, name: str) -> Profile:
         data = FileTool.readJSON(filepath)
 
         def get_type(t: str) -> PrimitiveType:
@@ -202,7 +202,7 @@ class PackageRegistry(CatalogRegistry[Package]):
         super().__init__(file_ext)
         self.__primitive_type_registry = primitives
 
-    def _load(self, filepath: str, name: str) -> Optional[Package]:
+    def _load(self, filepath: str, name: str) -> Package:
         return Package(
             parent=filepath,
             name=name,
@@ -253,7 +253,7 @@ class EnvironmentsRegistry(CatalogRegistry[Environment]):
         self.__profile_registry = profiles
         self.__package_registry = packages
 
-    def _load(self, filepath: str, name: str) -> _T:
+    def _load(self, filepath: str, name: str) -> Environment:
         data = FileTool.readJSON(filepath)
         profile = self.__profile_registry.get(data["profile"])
 
@@ -271,7 +271,7 @@ class EnvironmentsRegistry(CatalogRegistry[Environment]):
         for package_name in packages_names:
             for ins in self.__package_registry.get(package_name).instructions:
                 if (ex_ins := ret.get(ins.name)) is not None:
-                    raise ValueError(f"{ins} - overload not possible ({ex_ins} defined already)")
+                    raise ValueError(f"{ins} - overload is not allowed ({ex_ins} defined already)")
 
                 ret[ins.name] = EnvironmentInstruction(
                     parent=profile.name,
