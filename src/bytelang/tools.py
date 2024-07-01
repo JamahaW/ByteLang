@@ -17,7 +17,7 @@ class FileTool:
             return f.read()
 
     @classmethod
-    def readJSON(cls, filepath: str) -> dict | list:
+    def readJSON(cls, filepath: str | Path) -> dict | list:
         with open(filepath) as f:
             return json.load(f)
 

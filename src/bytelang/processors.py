@@ -2,6 +2,7 @@ from typing import Optional
 
 from bytelang.registries import EnvironmentsRegistry
 from bytelang.registries import PackageRegistry
+from bytelang.registries import PrimitiveTypeRegistry
 from bytelang.registries import ProfileRegistry
 
 
@@ -13,9 +14,11 @@ class Compiler:
     """
 
     def __init__(self) -> None:
-        self.__packageRegistry = PackageRegistry("blp")
-        self.__profileRegistry = ProfileRegistry("json")
-        self.__environmentRegistry = EnvironmentsRegistry("json", self.__profileRegistry, self.__packageRegistry)
+        # TODO private
+        self.primitiveTypeRegistry = PrimitiveTypeRegistry()
+        self.profileRegistry = ProfileRegistry("json", self.primitiveTypeRegistry)
+        self.packageRegistry = PackageRegistry("blp", self.primitiveTypeRegistry)
+        self.environmentRegistry = EnvironmentsRegistry("json", self.profileRegistry, self.packageRegistry)
 
         # TODO остальные реестры
 
@@ -27,26 +30,33 @@ class Compiler:
         """
         pass
 
+    def setPrimitivesFile(self, filepath: str) -> None:
+        """
+        Указать путь к файлу настройки примитивных типов
+        :param filepath:
+        """
+        self.primitiveTypeRegistry.setFile(filepath)
+
     def setEnvironmentsFolder(self, folder: str) -> None:
         """
         Указать путь к папке окружений
         :param folder:
         """
-        self.__environmentRegistry.setFolder(folder)
+        self.environmentRegistry.setFolder(folder)
 
     def setPackagesFolder(self, folder: str) -> None:
         """
         Указать путь к папке пакетов инструкций
         :param folder:
         """
-        self.__packageRegistry.setFolder(folder)
+        self.packageRegistry.setFolder(folder)
 
     def setProfilesFolder(self, folder: str) -> None:
         """
         Указать путь к папке профилей
         :param folder:
         """
-        self.__profileRegistry.setFolder(folder)
+        self.profileRegistry.setFolder(folder)
 
     def getProgram(self) -> Optional[bytes]:
         """

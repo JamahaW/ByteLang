@@ -1,7 +1,11 @@
 """
 Контент, который можно получить из реестров
 """
+
+from __future__ import annotations
+
 from dataclasses import dataclass
+from struct import Struct
 from typing import Optional
 
 from bytelang.tools import ReprTool
@@ -21,6 +25,7 @@ class BasicContent:
     """
     Абстрактный контент, загружаемый реестрами
     """
+
     parent: str
     name: str
 
@@ -28,27 +33,48 @@ class BasicContent:
         return f"{self.parent}::{self.name}"
 
 
-@dataclass(frozen=True, kw_only=True, order=False)
+@dataclass(frozen=True, kw_only=True, order=False, repr=False)
+class PrimitiveType(BasicContent):
+    """
+    Примитивный тип данных
+    """
+
+    index: int
+    size: int
+    signed: bool
+    packer: Struct
+
+    def __repr__(self) -> str:
+        return f"PrimitiveType {self.signed=}({self.size}) {self.parent}::{self.name}@{self.index}"
+
+    def __str__(self) -> str:
+        return self.name
+
+
+@dataclass(frozen=True, kw_only=True, order=False, repr=True)
 class Profile(BasicContent):
     """
     Профиль виртуальной машины
     """
 
     max_program_length: Optional[int]
-    pointer_program: object
-    pointer_heap: object
-    instruction_index: object
-    type_index: object
+    pointer_program: PrimitiveType
+    pointer_heap: PrimitiveType
+    instruction_index: PrimitiveType
+    type_index: PrimitiveType
 
 
-@dataclass(frozen=True, kw_only=True, order=False)
+@dataclass(frozen=True, kw_only=True, order=False, repr=False)
 class InstructionArgument:
     """
     Аргумент инструкции
     """
 
-    datatype: object  # TODO примитивный тип
+    primitive: PrimitiveType
     is_pointer: bool
+
+    def __repr__(self) -> str:
+        return f"{self.primitive.__str__()}{'*' * self.is_pointer}"
 
 
 @dataclass(frozen=True, kw_only=True, order=False, repr=False)
