@@ -1,10 +1,20 @@
 from os import PathLike
 from typing import Optional
+from typing import TextIO
 
 from bytelang.registries import EnvironmentsRegistry
 from bytelang.registries import PackageRegistry
 from bytelang.registries import PrimitiveTypeRegistry
 from bytelang.registries import ProfileRegistry
+
+
+class LexicalAnalyzer:
+
+    def __init__(self):
+        pass
+
+    def run(self, file: TextIO) -> tuple:
+        pass
 
 
 class Compiler:

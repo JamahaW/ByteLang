@@ -11,12 +11,6 @@ from typing import Optional
 from bytelang.tools import ReprTool
 
 
-# TODO реализовать реестры
-#  инструкций окружения
-#  переменных
-#  констант
-#  Примитивных типов
-
 # TODO реализовать декоратор для сокращения записи дата класса
 
 @dataclass(frozen=True, kw_only=True, order=False)
@@ -37,7 +31,7 @@ class PrimitiveType(BasicContent):
     Примитивный тип данных
     """
 
-    index: int  # TODO проверить что он вообще нужен, зачем мне вообще динамичный каст?
+    index: int
     """Индекс примитивного типа"""
     size: int
     """Размер примитивного типа"""
@@ -82,6 +76,23 @@ class InstructionArgument:
     def __repr__(self) -> str:
         return f"{self.primitive.__str__()}{'*' * self.is_pointer}"
 
+    def transform(self, profile: Profile) -> InstructionArgument:
+        """
+        Получить аргумент с актуальным примитивным типом на основе профиля.
+        Если аргумент был указателем, то примитивный тип аргумента становиться таким же,
+        как и указатель heap в профиле.
+        В другом случае остаётся неизменным.
+        :param profile:
+        :return:
+        """
+        if not self.is_pointer:
+            return self
+
+        return InstructionArgument(
+            primitive=profile.pointer_heap,
+            is_pointer=self.is_pointer
+        )
+
 
 @dataclass(frozen=True, kw_only=True, order=False, repr=False)
 class BasicInstruction(BasicContent):
@@ -94,6 +105,21 @@ class BasicInstruction(BasicContent):
 
     def __repr__(self) -> str:
         return f"{self.parent}::{self.name}{ReprTool.iter(self.arguments)}"
+
+    def transform(self, index: int, profile: Profile) -> EnvironmentInstruction:
+        """
+        Создать инструкцию окружения на основе базовой и профиля
+        :param index:
+        :param profile:
+        :return:
+        """
+        return EnvironmentInstruction(
+            parent=profile.name,
+            name=self.name,
+            index=index,
+            package=self.parent,
+            arguments=tuple(arg.transform(profile) for arg in self.arguments)
+        )
 
 
 @dataclass(frozen=True, kw_only=True, order=False)

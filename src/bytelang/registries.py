@@ -27,6 +27,11 @@ _K = TypeVar("_K")  # content Key
 _R = TypeVar("_R")  # content Raw object
 
 
+# TODO реализовать реестры
+#  переменных
+#  констант
+
+
 class BasicRegistry(ABC, Generic[_K, _T]):
     """
     Базовый реестр
@@ -132,7 +137,7 @@ class PrimitiveTypeRegistry(JSONFileRegistry[_PrimitiveRaw, PrimitiveType]):
         return ret
 
 
-# TODO setFolder передать маску с расширением файла
+
 class CatalogRegistry(BasicRegistry[str, _T]):
     """
     Каталоговый Реестр[T] (ищет файл по имени в каталоге)
@@ -181,17 +186,17 @@ class ProfileRegistry(CatalogRegistry[Profile]):
     def _load(self, filepath: str, name: str) -> Profile:
         data = FileTool.readJSON(filepath)
 
-        def get_type(t: str) -> PrimitiveType:
+        def getType(t: str) -> PrimitiveType:
             return self.__primitive_type_registry.getBySize(data[t])
 
         return Profile(
             parent=filepath,
             name=name,
             max_program_length=data.get("prog_len"),
-            pointer_program=get_type("ptr_prog"),
-            pointer_heap=get_type("ptr_heap"),
-            instruction_index=get_type("ptr_inst"),
-            type_index=get_type("ptr_type")
+            pointer_program=getType("ptr_prog"),
+            pointer_heap=getType("ptr_heap"),
+            instruction_index=getType("ptr_inst"),
+            type_index=getType("ptr_type")
         )
 
 
@@ -273,20 +278,7 @@ class EnvironmentsRegistry(CatalogRegistry[Environment]):
                 if (ex_ins := ret.get(ins.name)) is not None:
                     raise ValueError(f"{ins} - overload is not allowed ({ex_ins} defined already)")
 
-                ret[ins.name] = EnvironmentInstruction(
-                    parent=profile.name,
-                    name=ins.name,
-                    index=index,
-                    package=package_name,
-                    arguments=tuple(
-                        InstructionArgument(
-                            primitive=profile.pointer_heap if arg.is_pointer else arg.primitive,
-                            is_pointer=arg.is_pointer
-                        )
-                        for arg in ins.arguments
-                    )
-                )
-
+                ret[ins.name] = ins.transform(index, profile)
                 index += 1
 
         return ret
