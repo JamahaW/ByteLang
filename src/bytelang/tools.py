@@ -27,13 +27,9 @@ class FileTool:
             f.write(_data)
 
     @classmethod
-    def saveBinary(cls, filepath: str, _data: bytes):
+    def saveBytes(cls, filepath: str, _data: bytes):
         with open(filepath, "wb") as f:
             f.write(_data)
-
-    @classmethod
-    def getFileNamesByExt(cls, folder: str, extension: str) -> tuple[str, ...]:
-        return tuple(file.stem for file in Path(folder).glob(f"*.{extension}"))
 
 
 class ReprTool:
@@ -49,7 +45,3 @@ class ReprTool:
     @staticmethod
     def headed(name: str, i: Iterable, *, length: int = 120, fill: str = "-") -> str:
         return f"{f' <<< {name} >>> ':{fill}^{length}}\n{ReprTool.column(i)}\n"
-
-
-if __name__ == '__main__':
-    print(FileTool.readJSON("../../data/environments/test_env.json"))

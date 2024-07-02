@@ -28,6 +28,7 @@ _R = TypeVar("_R")  # content Raw object
 
 
 # TODO реализовать реестры
+#  Реестры с временным хранением данных, возможностью их удаления (Тупо словарь?)
 #  переменных
 #  констант
 
@@ -62,9 +63,8 @@ class JSONFileRegistry(BasicRegistry[str, _T], Generic[_R, _T]):
         self._filepath: Optional[Path] = None
 
     def setFile(self, filepath: PathLike | str) -> None:
-        filepath = Path(filepath)
-
-        self._filepath = filepath
+        self._filepath = Path(filepath)
+        self._data.clear()
         self._data.update(
             {
                 name: self._parse(name, raw)
@@ -137,7 +137,6 @@ class PrimitiveTypeRegistry(JSONFileRegistry[_PrimitiveRaw, PrimitiveType]):
         return ret
 
 
-
 class CatalogRegistry(BasicRegistry[str, _T]):
     """
     Каталоговый Реестр[T] (ищет файл по имени в каталоге)
@@ -150,12 +149,12 @@ class CatalogRegistry(BasicRegistry[str, _T]):
 
     def setFolder(self, folder: PathLike | str) -> None:
         """Установить каталог для загрузки контента"""
-        folder = Path(folder)
+        self.__folder = Path(folder)
 
-        if not folder.is_dir():
+        if not self.__folder.is_dir():
             raise ValueError(f"Not a Folder: {folder}")
 
-        self.__folder = folder
+        self._data.clear()
 
     def get(self, name: str) -> _T:
         if self.__folder is None:
@@ -201,7 +200,6 @@ class ProfileRegistry(CatalogRegistry[Profile]):
 
 
 class PackageRegistry(CatalogRegistry[Package]):
-    POINTER_CHAR: Final[str] = "*"
 
     def __init__(self, file_ext: str, primitives: PrimitiveTypeRegistry):
         super().__init__(file_ext)
@@ -240,9 +238,10 @@ class PackageRegistry(CatalogRegistry[Package]):
         return ret
 
     def __parseArgument(self, package_name: str, name: str, index: int, arg_lexeme: str) -> InstructionArgument:
-        is_pointer = arg_lexeme[-1] == self.POINTER_CHAR
+        is_pointer = arg_lexeme[-1] == InstructionArgument.POINTER_CHAR
+        arg_lexeme = arg_lexeme.rstrip(InstructionArgument.POINTER_CHAR)
 
-        if (primitive := self.__primitive_type_registry.get(arg_lexeme.rstrip(self.POINTER_CHAR))) is None:
+        if (primitive := self.__primitive_type_registry.get(arg_lexeme)) is None:
             raise ValueError(f"Unknown primitive '{arg_lexeme}' at {index} in {package_name}::{name}")
 
         return InstructionArgument(

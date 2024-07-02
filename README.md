@@ -106,7 +106,7 @@
 Вот фрагмент кода, удовлетворяющий данной грамматике
 
 ```bls
-.use env_test
+.env env_test
 
 my_mark:
 
@@ -124,7 +124,7 @@ instr_test 123
 
 Директивы используются для операций над кодом во время компиляции
 
-- `use <env_name>` - Использовать окружение env_name
+- `env <env_name>` - Использовать окружение env_name
     - Вызывается один раз, обычно самой первой строчкой
 
 - `ptr <T> <name> <value>` объявить указатель.\
@@ -200,7 +200,7 @@ test i16* u8 u32
 Используя все перечисленные выше настройки компилятора, получится написать следующи код:
 
 ```bls
-.use example_env
+.env example_env
 
 # объявлем константы A = 10, B = 25
 .def A 10
@@ -233,7 +233,7 @@ exit    88
 Если бы мы увидели как такой код выглядит, то получили бы такой результат:
 
 ```bls
-.use example_env
+.env example_env
 .def A 10
 .def B 25
 .ptr i16 x -12345
@@ -247,28 +247,19 @@ exit 88
 
 Соответственно определяем тип выражения и пакуем данные, предварительно проверив, что лексемы соответствуют регулярным выражениям
 
-```pycon
-Statement(type=DIRECTIVE_USE, args=("use", "example_env"))
-Statement(type=DIRECTIVE_USE, args=("def", "A", "10"))
-Statement(type=DIRECTIVE_USE, args=("def", "B", "25"))
-Statement(type=DIRECTIVE_USE, args=("ptr", "i16", "x", "-12345"))
-Statement(type=DIRECTIVE_USE, args=("ptr", "u8", "y", "123"))
-Statement(type=INSTRUCTION_CALL, args=("test","x", "A", "B"))
-Statement(type=INSTRUCTION_CALL, args=("test","y", "B", "x"))
-Statement(type=INSTRUCTION_CALL, args=("exit", "88"))
+```
+  0: DIRECTIVE_USE@0                  env(example_env)   
+  1: DIRECTIVE_USE@1                  def(A, 10)         
+  2: DIRECTIVE_USE@2                  def(B, 25)         
+  3: DIRECTIVE_USE@3                  ptr(i16, x, -12345)
+  4: DIRECTIVE_USE@4                  ptr(u8, y, 123)    
+  5: INSTRUCTION_CALL@5               test(x, A, B)      
+  6: INSTRUCTION_CALL@6               test(y, B, x)      
+  7: INSTRUCTION_CALL@7               exit(88)           
 ```
 
 Начинаем обработку выражений и генерируем промежуточный код. Разберу несколько из них.
 
-`Statement(type=DIRECTIVE_USE, args=("use", "example_env"))`
-- DIRECTIVE_USE - вызываем обработчик директив.
-- args: `"use", "example_env"`
-- `"use"` подключаем окружение example_env из реестра окружений.
-
-
-`Statement(type=DIRECTIVE_USE, args=("def", "A", "10"))`
-- DIRECTIVE_USE, `"def", "A", "10"`
-- Добавляем значение "A" = 10
 
 
 

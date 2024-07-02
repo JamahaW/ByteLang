@@ -1,10 +1,10 @@
 from pathlib import PurePath
 
 from bytelang.processors import Compiler
-from bytelang.tools import ReprTool
 
 if __name__ == '__main__':
-    data_folder = PurePath(r"A:\Projects\ByteLang\registries_data")
+    base_folder = PurePath(r"A:\Projects\ByteLang")
+    data_folder = base_folder / "registries_data"
 
     compiler = Compiler()
     compiler.setPrimitivesFile(data_folder / "primitive_types.json")
@@ -12,4 +12,5 @@ if __name__ == '__main__':
     compiler.setProfilesFolder(data_folder / "profiles")
     compiler.setPackagesFolder(data_folder / "packages")
 
-    print(ReprTool.column(compiler.environmentRegistry.get("test_env").instructions.values()))
+    compiler.run(base_folder / "test/test.bls")
+    print(compiler.getErrorsLog())

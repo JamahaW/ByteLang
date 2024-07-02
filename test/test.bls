@@ -1,16 +1,18 @@
-.env test
+.env example_env
 
-.ptr u16 x 0
+.def A 10
+.def B 25
+
+.ptr i16 x -12333
+.ptr u8 y 0x69
+
+@@
 
 __start__:
 
-    input x
-
-    push x
-    push x
-    mul
-
-    print x
+    test x A 0b1110
+    test y B x @
 
 __end__:
-    exit 0
+
+    exit 88

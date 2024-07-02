@@ -1,19 +1,20 @@
 """
 Контент, который можно получить из реестров
 """
+# TODO найти подходящее название
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from struct import Struct
+from typing import ClassVar
+from typing import Final
 from typing import Optional
 
 from bytelang.tools import ReprTool
 
 
-# TODO реализовать декоратор для сокращения записи дата класса
-
-@dataclass(frozen=True, kw_only=True, order=False)
+@dataclass(frozen=True, kw_only=True)
 class BasicContent:
     """
     Абстрактный контент, загружаемый реестрами
@@ -25,7 +26,7 @@ class BasicContent:
     """Наименование контента"""
 
 
-@dataclass(frozen=True, kw_only=True, order=False)
+@dataclass(frozen=True, kw_only=True)
 class PrimitiveType(BasicContent):
     """
     Примитивный тип данных
@@ -44,7 +45,7 @@ class PrimitiveType(BasicContent):
         return self.name
 
 
-@dataclass(frozen=True, kw_only=True, order=False, repr=True)
+@dataclass(frozen=True, kw_only=True)
 class Profile(BasicContent):
     """
     Профиль виртуальной машины
@@ -59,14 +60,16 @@ class Profile(BasicContent):
     instruction_index: PrimitiveType
     """Тип индекса инструкции (Определяет максимальное кол-во инструкций в профиле"""
     type_index: PrimitiveType
-    """Индекс типа переменной"""  # TODO проверить что он вообще нужен, зачем мне вообще динамичный каст?
+    """Индекс типа переменной"""
 
 
-@dataclass(frozen=True, kw_only=True, order=False, repr=False)
+@dataclass(frozen=True, kw_only=True)
 class InstructionArgument:
     """
     Аргумент инструкции
     """
+
+    POINTER_CHAR: Final[ClassVar[str]] = "*"
 
     primitive: PrimitiveType
     """Примитивный тип аргумента"""
@@ -74,7 +77,7 @@ class InstructionArgument:
     """Если указатель - значение переменной будет считано как этот тип"""
 
     def __repr__(self) -> str:
-        return f"{self.primitive.__str__()}{'*' * self.is_pointer}"
+        return f"{self.primitive.__str__()}{self.POINTER_CHAR * self.is_pointer}"
 
     def transform(self, profile: Profile) -> InstructionArgument:
         """
@@ -94,7 +97,7 @@ class InstructionArgument:
         )
 
 
-@dataclass(frozen=True, kw_only=True, order=False, repr=False)
+@dataclass(frozen=True, kw_only=True)
 class BasicInstruction(BasicContent):
     """
     Базовые сведения об инструкции
@@ -122,7 +125,7 @@ class BasicInstruction(BasicContent):
         )
 
 
-@dataclass(frozen=True, kw_only=True, order=False)
+@dataclass(frozen=True, kw_only=True)
 class EnvironmentInstruction(BasicContent):
     """
     Инструкция окружения
@@ -139,7 +142,7 @@ class EnvironmentInstruction(BasicContent):
         return f"{self.package}::{self.name}@{self.index}{ReprTool.iter(self.arguments)}"
 
 
-@dataclass(frozen=True, kw_only=True, order=False)
+@dataclass(frozen=True, kw_only=True)
 class Package(BasicContent):
     """
     Пакет инструкций
@@ -149,7 +152,7 @@ class Package(BasicContent):
     """Базовые инструкции"""
 
 
-@dataclass(frozen=True, kw_only=True, order=False)
+@dataclass(frozen=True, kw_only=True)
 class Environment(BasicContent):
     """
     Окружение виртуальной машины
