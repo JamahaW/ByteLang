@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+import math
 import re
 from dataclasses import dataclass
 from enum import Enum
@@ -15,38 +18,66 @@ from bytelang.registries import ProfileRegistry
 from bytelang.tools import ReprTool
 
 
-class Token:
-    CHAR_DIRECTIVE = "."
-    CHAR_MARK = ":"
-
-
 class Regex:
-    VALID_WORD = r"[_a-zA-Z\d]+"
-    INTEGER = r"^[+-]?[\d_]+$"
+    IDENTIFIER = r"[_a-zA-Z\d]+"
+    INTEGER = r"^[+-]?[1-9][\d_]+$"
+    EXPONENT = r"^[-+]?\d+[.]\d+([eE][-+]?\d+)?$"
     HEX_VALUE = r"^0[xX][_\da-fA-F]+$"
-    BIN_VALUE = r"^0[bB][_\da-fA-F]+$"
+    OCT_VALUE = r"^[+-]?0[_0-8]+$"
+    BIN_VALUE = r"^0[bB][_01]+$"
 
 
 class StatementType(Enum):
-    """
-    Виды выражений
-    """
+    """Виды выражений"""
 
-    DIRECTIVE_USE = f"[{Token.CHAR_DIRECTIVE}]{Regex.VALID_WORD}[^{Token.CHAR_MARK}]"
+    DIRECTIVE_USE = f"[.]{Regex.IDENTIFIER}"
     """Использование директивы"""
-    MARK_DECLARE = f"{Regex.VALID_WORD}{Token.CHAR_MARK}"
+    MARK_DECLARE = f"{Regex.IDENTIFIER}:"
     """Установка метки"""
-    INSTRUCTION_CALL = Regex.VALID_WORD
+    INSTRUCTION_CALL = Regex.IDENTIFIER
     """Вызов инструкции"""
 
     def __repr__(self) -> str:
         return self.name
 
 
-# @dataclass(frozen=True, kw_only=True)
-# class StatementArgument:
-#     integer: Optional[int]
-#     identifier: Optional[str]
+@dataclass(frozen=True, kw_only=True)
+class StatementArgument:
+    """Универсальный тип для значения аргумента"""
+
+    integer: Optional[int]
+    exponent: Optional[float]
+    identifier: Optional[str]
+
+    @staticmethod
+    def fromName(name: str) -> StatementArgument:
+        return StatementArgument(
+            integer=None,
+            exponent=None,
+            identifier=name
+        )
+
+    @staticmethod
+    def fromInteger(value: int) -> StatementArgument:
+        return StatementArgument(
+            integer=value,
+            exponent=float(value),
+            identifier=None
+        )
+
+    @staticmethod
+    def fromExponent(value: float) -> StatementArgument:
+        return StatementArgument(
+            integer=math.floor(value),
+            exponent=value,
+            identifier=None
+        )
+
+    def __repr__(self) -> str:
+        if self.identifier is None:
+            return f"[{self.integer} | {self.exponent}]"
+
+        return f"{self.identifier!r}"
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -56,7 +87,7 @@ class Statement:
     source_line_clean: str
     source_line_index: int
     head: str
-    lexemes: tuple[Optional[str | int], ...]  # TODO нужен какой-то универсальный тип для значения (StatementArgument)
+    lexemes: tuple[Optional[StatementArgument], ...]
 
     def __str__(self) -> str:
         type_index = f"{self.type.name}{f'@{self.source_line_index}':<5}"
@@ -100,24 +131,30 @@ class LexicalAnalyzer:
     def __matchStatementType(self, lexeme: str, index: int, raw_line: str) -> tuple[StatementType, str] | tuple[None, None]:
         for statement_type in StatementType:
             if m := re.fullmatch(statement_type.value, lexeme):
-                w = re.search(Regex.VALID_WORD, m.string)
+                w = re.search(Regex.IDENTIFIER, m.string)
                 return statement_type, w.string[w.start():w.end()]
 
         self.__err.writeLineAt(raw_line, index, f"Не удалось определить тип выражения: '{lexeme}'")
         return None, None
 
-    def __matchStatementArg(self, lexeme: str, arg_i: int, index: int, raw_line: str) -> Optional[str | int]:
+    def __matchStatementArg(self, lexeme: str, arg_i: int, index: int, raw_line: str) -> Optional[StatementArgument]:
         if re.match(Regex.INTEGER, lexeme):
-            return int(lexeme, 10)
+            return StatementArgument.fromInteger(int(lexeme, 10))
 
         if re.match(Regex.BIN_VALUE, lexeme):
-            return int(lexeme, 2)
+            return StatementArgument.fromInteger(int(lexeme, 2))
+
+        if re.match(Regex.OCT_VALUE, lexeme):
+            return StatementArgument.fromInteger(int(lexeme, 8))
 
         if re.match(Regex.HEX_VALUE, lexeme):
-            return int(lexeme, 16)
+            return StatementArgument.fromInteger(int(lexeme, 16))
 
-        if re.fullmatch(Regex.VALID_WORD, lexeme):
-            return lexeme
+        if re.match(Regex.EXPONENT, lexeme):
+            return StatementArgument.fromExponent(float(lexeme))
+
+        if re.fullmatch(Regex.IDENTIFIER, lexeme):
+            return StatementArgument.fromName(lexeme)
 
         self.__err.writeLineAt(raw_line, index, f"Запись Аргумента ({arg_i}) '{lexeme}' не распознана")
 
@@ -128,9 +165,9 @@ class Compiler:
     """
 
     def __init__(self) -> None:
-        self.__primitive_type_registry = PrimitiveTypeRegistry()
-        self.__profile_registry = ProfileRegistry("json", self.__primitive_type_registry)
-        self.__package_registry = PackageRegistry("blp", self.__primitive_type_registry)
+        self.primitive_type_registry = PrimitiveTypeRegistry()
+        self.__profile_registry = ProfileRegistry("json", self.primitive_type_registry)
+        self.__package_registry = PackageRegistry("blp", self.primitive_type_registry)
         self.__environment_registry = EnvironmentsRegistry("json", self.__profile_registry, self.__package_registry)
         # TODO остальные реестры
 
@@ -158,7 +195,7 @@ class Compiler:
         Указать путь к файлу настройки примитивных типов
         :param filepath:
         """
-        self.__primitive_type_registry.setFile(filepath)
+        self.primitive_type_registry.setFile(filepath)
 
     def setEnvironmentsFolder(self, folder: PathLike | str) -> None:
         """

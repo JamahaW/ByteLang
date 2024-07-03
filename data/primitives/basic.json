@@ -1,34 +1,42 @@
 {
   "u8": {
-    "signed": false,
+    "type": "unsigned",
     "size": 1
   },
   "i8": {
-    "signed": true,
+    "type": "signed",
     "size": 1
   },
   "u16": {
-    "signed": false,
+    "type": "unsigned",
     "size": 2
   },
   "i16": {
-    "signed": true,
+    "type": "signed",
     "size": 2
   },
   "u32": {
-    "signed": false,
+    "type": "unsigned",
     "size": 4
   },
   "i32": {
-    "signed": true,
+    "type": "signed",
     "size": 4
   },
   "u64": {
-    "signed": false,
+    "type": "unsigned",
     "size": 8
   },
   "i64": {
-    "signed": true,
+    "type": "signed",
+    "size": 8
+  },
+  "f32": {
+    "type": "exponent",
+    "size": 4
+  },
+  "f64": {
+    "type": "exponent",
     "size": 8
   }
 }

@@ -6,6 +6,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import Enum
+from enum import auto
 from struct import Struct
 from typing import ClassVar
 from typing import Final
@@ -16,9 +18,7 @@ from bytelang.tools import ReprTool
 
 @dataclass(frozen=True, kw_only=True)
 class BasicContent:
-    """
-    Абстрактный контент, загружаемый реестрами
-    """
+    """Абстрактный контент, загружаемый реестрами"""
 
     parent: str
     """Родительский контент"""
@@ -26,38 +26,52 @@ class BasicContent:
     """Наименование контента"""
 
 
-@dataclass(frozen=True, kw_only=True)
-class PrimitiveType(BasicContent):
-    """
-    Примитивный тип данных
-    """
+class PrimitiveWriteType(Enum):
+    """Способ записи данных примитивного типа"""
 
-    # TODO float
-    STRUCT_FORMATS_BY_SIZE: ClassVar[dict[int, str]] = {
-        1: "B",
-        2: "H",
-        4: "I",
-        8: "Q"
-    }
-
-    index: int
-    """Индекс примитивного типа"""
-    size: int
-    """Размер примитивного типа"""
-    signed: bool
-    """Имеет знак"""
-    packer: Struct
-    """Упаковщик структуры"""
+    signed = auto()
+    unsigned = auto()
+    exponent = auto()
 
     def __str__(self) -> str:
         return self.name
 
 
 @dataclass(frozen=True, kw_only=True)
+class PrimitiveType(BasicContent):
+    """Примитивный тип данных"""
+
+    INTEGER_FORMATS: ClassVar[dict[int, str]] = {
+        1: "B",
+        2: "H",
+        4: "I",
+        8: "Q"
+    }
+
+    EXPONENT_FORMATS: ClassVar[dict[int, str]] = {
+        4: "f",
+        8: "d"
+    }
+
+    index: int
+    """Индекс примитивного типа"""
+    size: int
+    """Размер примитивного типа"""
+    write_type: PrimitiveWriteType
+    """Способ записи"""
+    packer: Struct
+    """Упаковщик структуры"""
+
+    def __repr__(self) -> str:
+        return f"[{self.write_type} {self.size * 8}-bit] {self.__str__()}@{self.index}"
+
+    def __str__(self) -> str:
+        return f"{self.parent}::{self.name}"
+
+
+@dataclass(frozen=True, kw_only=True)
 class Profile(BasicContent):
-    """
-    Профиль виртуальной машины
-    """
+    """Профиль виртуальной машины"""
 
     max_program_length: Optional[int]
     """Максимальный размер программы. None, если неограничен"""
@@ -73,9 +87,7 @@ class Profile(BasicContent):
 
 @dataclass(frozen=True, kw_only=True)
 class InstructionArgument:
-    """
-    Аргумент инструкции
-    """
+    """Аргумент инструкции"""
 
     POINTER_CHAR: Final[ClassVar[str]] = "*"
 
@@ -107,9 +119,7 @@ class InstructionArgument:
 
 @dataclass(frozen=True, kw_only=True)
 class BasicInstruction(BasicContent):
-    """
-    Базовые сведения об инструкции
-    """
+    """Базовые сведения об инструкции"""
 
     arguments: tuple[InstructionArgument, ...]
     """Аргументы базовой инструкции"""
@@ -135,9 +145,7 @@ class BasicInstruction(BasicContent):
 
 @dataclass(frozen=True, kw_only=True)
 class EnvironmentInstruction(BasicContent):
-    """
-    Инструкция окружения
-    """
+    """Инструкция окружения"""
 
     index: int
     """Индекс этой инструкции"""
@@ -152,9 +160,7 @@ class EnvironmentInstruction(BasicContent):
 
 @dataclass(frozen=True, kw_only=True)
 class Package(BasicContent):
-    """
-    Пакет инструкций
-    """
+    """Пакет инструкций"""
 
     instructions: tuple[BasicInstruction, ...]
     """Базовые инструкции"""
@@ -162,9 +168,7 @@ class Package(BasicContent):
 
 @dataclass(frozen=True, kw_only=True)
 class Environment(BasicContent):
-    """
-    Окружение виртуальной машины
-    """
+    """Окружение виртуальной машины"""
 
     profile: Profile
     """Профиль этого окружения (Настройки Виртуальной машины)"""

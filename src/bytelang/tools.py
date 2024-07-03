@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 from typing import Iterable
+from typing import Literal
 
 
 class FileTool:
@@ -39,7 +40,7 @@ class ReprTool:
         return f"{l_paren}{sep.join(i.__str__() for i in iterable)}{r_paren}"
 
     @staticmethod
-    def column(iterable: Iterable, *, sep: str = ": ", begin: int = 0, intend: int = 0) -> str:
+    def column(iterable: Iterable, *, sep: str = ": ", begin: int = 0, intend: int = 0, r_type: Literal["s", "r"] = "s") -> str:
         return '\n'.join(f"{'  ' * intend}{(index + begin):>3}{sep}{item}" for index, item in enumerate(iterable))
 
     @staticmethod

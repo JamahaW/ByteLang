@@ -19,6 +19,7 @@ from bytelang.content import EnvironmentInstruction
 from bytelang.content import InstructionArgument
 from bytelang.content import Package
 from bytelang.content import PrimitiveType
+from bytelang.content import PrimitiveWriteType
 from bytelang.content import Profile
 from bytelang.tools import FileTool
 
@@ -90,7 +91,7 @@ class JSONFileRegistry(BasicRegistry[str, _T], Generic[_R, _T]):
         """
 
 
-_PrimitiveRaw = dict[str, int | bool]
+_PrimitiveRaw = dict[str, int | str]
 
 
 class PrimitiveTypeRegistry(JSONFileRegistry[_PrimitiveRaw, PrimitiveType]):
@@ -101,28 +102,33 @@ class PrimitiveTypeRegistry(JSONFileRegistry[_PrimitiveRaw, PrimitiveType]):
     def __init__(self):
         super().__init__()
         self.__next_index: int = 0
-        self.__primitives_by_size = dict[tuple[int, bool], PrimitiveType]()
+        self.__primitives_by_size = dict[tuple[int, PrimitiveWriteType], PrimitiveType]()
 
-    def getBySize(self, size: int, signed=False) -> PrimitiveType:
-        return self.__primitives_by_size[size, signed]
+    def getBySize(self, size: int, write_type: PrimitiveWriteType = PrimitiveWriteType.unsigned) -> PrimitiveType:
+        return self.__primitives_by_size[size, write_type]
 
     def _parse(self, name: str, raw: _PrimitiveRaw) -> PrimitiveType:
         size = raw["size"]
-        signed = raw["signed"]
+        write_type = PrimitiveWriteType[raw["type"]]
 
-        if (size, signed) in self.__primitives_by_size.keys():
+        if (size, write_type) in self.__primitives_by_size.keys():
             raise ValueError(f"type aliases not support: {name}, {raw}")
 
-        if (fmt := PrimitiveType.STRUCT_FORMATS_BY_SIZE.get(size)) is None:
-            raise ValueError(f"Invalid size ({size}) must be in {tuple(PrimitiveType.STRUCT_FORMATS_BY_SIZE.keys())}")
+        formats = PrimitiveType.EXPONENT_FORMATS if write_type == PrimitiveWriteType.exponent else PrimitiveType.INTEGER_FORMATS
 
-        ret = self.__primitives_by_size[size, signed] = PrimitiveType(
+        if (fmt := formats.get(size)) is None:
+            raise ValueError(f"Invalid size ({size}) must be in {tuple(formats.keys())}")
+
+        if write_type == PrimitiveWriteType.signed:
+            fmt = fmt.lower()
+
+        ret = self.__primitives_by_size[size, write_type] = PrimitiveType(
             name=name,
             parent=self._filepath.stem,
             index=self.__next_index,
             size=size,
-            signed=signed,
-            packer=Struct(fmt.lower() if signed else fmt)
+            write_type=write_type,
+            packer=Struct(fmt)
         )
 
         self.__next_index += 1

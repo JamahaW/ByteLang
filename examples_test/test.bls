@@ -4,15 +4,15 @@
 .def B 25
 
 .ptr i16 x -12333
-.ptr u8 y 0x69
+.ptr u8 y 0x420
 
-@@
+
 
 __start__:
 
     test x A 0b1110
-    test y B x @
+    test y B x 0123
 
 __end__:
 
-    exit 88
+    exit 69.69E-6
