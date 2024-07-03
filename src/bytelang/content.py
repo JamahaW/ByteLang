@@ -32,6 +32,14 @@ class PrimitiveType(BasicContent):
     Примитивный тип данных
     """
 
+    # TODO float
+    STRUCT_FORMATS_BY_SIZE: ClassVar[dict[int, str]] = {
+        1: "B",
+        2: "H",
+        4: "I",
+        8: "Q"
+    }
+
     index: int
     """Индекс примитивного типа"""
     size: int

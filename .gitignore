@@ -1,0 +1,4 @@
+.idea
+_legacy
+.gitignore
+__pycache__

@@ -22,9 +22,12 @@ from bytelang.content import PrimitiveType
 from bytelang.content import Profile
 from bytelang.tools import FileTool
 
-_T = TypeVar("_T")  # content Type
-_K = TypeVar("_K")  # content Key
-_R = TypeVar("_R")  # content Raw object
+_T = TypeVar("_T")
+"""content Type"""
+_K = TypeVar("_K")
+"""content Key"""
+_R = TypeVar("_R")
+"""content Raw object"""
 
 
 # TODO реализовать реестры
@@ -95,14 +98,6 @@ class PrimitiveTypeRegistry(JSONFileRegistry[_PrimitiveRaw, PrimitiveType]):
     Реестр примитивных типов
     """
 
-    # TODO float
-    _STRUCT_FORMATS_BY_SIZE: Final[dict[int, str]] = {
-        1: "B",
-        2: "H",
-        4: "I",
-        8: "Q"
-    }
-
     def __init__(self):
         super().__init__()
         self.__next_index: int = 0
@@ -113,16 +108,15 @@ class PrimitiveTypeRegistry(JSONFileRegistry[_PrimitiveRaw, PrimitiveType]):
 
     def _parse(self, name: str, raw: _PrimitiveRaw) -> PrimitiveType:
         size = raw["size"]
-
-        if (fmt := self._STRUCT_FORMATS_BY_SIZE.get(size)) is None:
-            raise ValueError(f"Invalid size ({size}) must be in {tuple(self._STRUCT_FORMATS_BY_SIZE.keys())}")
-
         signed = raw["signed"]
 
         if (size, signed) in self.__primitives_by_size.keys():
             raise ValueError(f"type aliases not support: {name}, {raw}")
 
-        ret = PrimitiveType(
+        if (fmt := PrimitiveType.STRUCT_FORMATS_BY_SIZE.get(size)) is None:
+            raise ValueError(f"Invalid size ({size}) must be in {tuple(PrimitiveType.STRUCT_FORMATS_BY_SIZE.keys())}")
+
+        ret = self.__primitives_by_size[size, signed] = PrimitiveType(
             name=name,
             parent=self._filepath.stem,
             index=self.__next_index,
@@ -131,7 +125,6 @@ class PrimitiveTypeRegistry(JSONFileRegistry[_PrimitiveRaw, PrimitiveType]):
             packer=Struct(fmt.lower() if signed else fmt)
         )
 
-        self.__primitives_by_size[size, signed] = ret
         self.__next_index += 1
 
         return ret

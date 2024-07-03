@@ -7,7 +7,7 @@ if __name__ == '__main__':
     data_folder = base_folder / "registries_data"
 
     compiler = Compiler()
-    compiler.setPrimitivesFile(data_folder / "primitive_types.json")
+    compiler.setPrimitivesFile(data_folder / "basic.json")
     compiler.setEnvironmentsFolder(data_folder / "environments")
     compiler.setProfilesFolder(data_folder / "profiles")
     compiler.setPackagesFolder(data_folder / "packages")
