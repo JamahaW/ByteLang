@@ -1,6 +1,7 @@
 """
 Различные Реестры контента
 """
+from __future__ import annotations
 
 from abc import ABC
 from abc import abstractmethod
@@ -13,15 +14,17 @@ from typing import Iterable
 from typing import Optional
 from typing import TypeVar
 
-from bytelang.content import BasicInstruction
 from bytelang.content import Environment
 from bytelang.content import EnvironmentInstruction
 from bytelang.content import InstructionArgument
 from bytelang.content import Package
+from bytelang.content import PackageInstruction
 from bytelang.content import PrimitiveType
 from bytelang.content import PrimitiveWriteType
 from bytelang.content import Profile
+from bytelang.parsers import BasicParser
 from bytelang.tools import FileTool
+from bytelang.tools import ReprTool
 
 _T = TypeVar("_T")
 """content Type"""
@@ -198,43 +201,33 @@ class ProfileRegistry(CatalogRegistry[Profile]):
         )
 
 
-class PackageRegistry(CatalogRegistry[Package]):
+class PackageParser(BasicParser[PackageInstruction]):
+    """Парсер пакета инструкций"""
 
-    def __init__(self, file_ext: str, primitives: PrimitiveTypeRegistry):
-        super().__init__(file_ext)
+    def __init__(self, primitives: PrimitiveTypeRegistry):
+        self.__used_names = set[str]()
+        self.__package_name: Optional[str] = None
         self.__primitive_type_registry = primitives
 
-    def _load(self, filepath: str, name: str) -> Package:
-        return Package(
-            parent=filepath,
+    def begin(self, package_name: str) -> None:
+        self.__package_name = package_name
+
+    def _parseLine(self, index: int, source_line: str, clean_line: str) -> Optional[PackageInstruction]:
+        name, *arg_types = clean_line.split()
+
+        if name in self.__used_names:
+            raise ValueError(f"redefinition of {self.__package_name}::{name}{ReprTool.iter(arg_types)} at line {index} ")
+
+        self.__used_names.add(name)
+
+        return PackageInstruction(
+            parent=self.__package_name,
             name=name,
-            instructions=tuple(self.__parseInstructions(name, filepath))
+            arguments=tuple(
+                self.__parseArgument(self.__package_name, name, i, arg)
+                for i, arg in enumerate(arg_types)
+            )
         )
-
-    def __parseInstructions(self, package_name: str, filepath: str) -> Iterable[BasicInstruction]:
-        ret = list[BasicInstruction]()
-        used_names = set[str]()
-
-        for line in FileTool.read(filepath).split("\n"):
-            line = line.split("#")[0].strip()
-
-            if line == "":
-                continue
-
-            name, *arg_types = line.split()
-
-            if name in used_names:
-                raise ValueError(f"redefinition of '{name}' in package '{package_name}' ")
-
-            ret.append(BasicInstruction(
-                parent=package_name,
-                name=name,
-                arguments=tuple(self.__parseArgument(package_name, name, i, arg) for i, arg in enumerate(arg_types))
-            ))
-
-            used_names.add(name)
-
-        return ret
 
     def __parseArgument(self, package_name: str, name: str, index: int, arg_lexeme: str) -> InstructionArgument:
         is_pointer = arg_lexeme[-1] == InstructionArgument.POINTER_CHAR
@@ -243,10 +236,20 @@ class PackageRegistry(CatalogRegistry[Package]):
         if (primitive := self.__primitive_type_registry.get(arg_lexeme)) is None:
             raise ValueError(f"Unknown primitive '{arg_lexeme}' at {index} in {package_name}::{name}")
 
-        return InstructionArgument(
-            primitive=primitive,
-            is_pointer=is_pointer
-        )
+        return InstructionArgument(primitive=primitive, is_pointer=is_pointer)
+
+
+class PackageRegistry(CatalogRegistry[Package]):
+
+    def __init__(self, file_ext: str, primitives: PrimitiveTypeRegistry):
+        super().__init__(file_ext)
+        self.__lexer = PackageParser(primitives)
+
+    def _load(self, filepath: str, name: str) -> Package:
+        self.__lexer.begin(name)
+
+        with open(filepath) as f:
+            return Package(parent=filepath, name=name, instructions=tuple(self.__lexer.run(f)))
 
 
 class EnvironmentsRegistry(CatalogRegistry[Environment]):

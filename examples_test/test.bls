@@ -6,7 +6,10 @@
 .ptr i16 x -12333
 .ptr u8 y 0x420
 
-
+write_BYTE 'c'
+write_BYTE 'o'
+write_BYTE 'l'
+write_BYTE 'a'
 
 __start__:
 

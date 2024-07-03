@@ -118,7 +118,7 @@ class InstructionArgument:
 
 
 @dataclass(frozen=True, kw_only=True)
-class BasicInstruction(BasicContent):
+class PackageInstruction(BasicContent):
     """Базовые сведения об инструкции"""
 
     arguments: tuple[InstructionArgument, ...]
@@ -154,7 +154,7 @@ class EnvironmentInstruction(BasicContent):
     arguments: tuple[InstructionArgument, ...]
     """Аргументы окружения. Если тип был указателем, примитивный тип стал соответствовать типу указателя профиля окружения"""
 
-    def __str__(self) -> str:
+    def __repr__(self) -> str:
         return f"{self.package}::{self.name}@{self.index}{ReprTool.iter(self.arguments)}"
 
 
@@ -162,7 +162,7 @@ class EnvironmentInstruction(BasicContent):
 class Package(BasicContent):
     """Пакет инструкций"""
 
-    instructions: tuple[BasicInstruction, ...]
+    instructions: tuple[PackageInstruction, ...]
     """Базовые инструкции"""
 
 
