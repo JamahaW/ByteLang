@@ -22,7 +22,7 @@ from bytelang.content import PackageInstruction
 from bytelang.content import PrimitiveType
 from bytelang.content import PrimitiveWriteType
 from bytelang.content import Profile
-from bytelang.parsers import BasicParser
+from bytelang.parsers import Parser
 from bytelang.tools import FileTool
 from bytelang.tools import ReprTool
 
@@ -40,7 +40,7 @@ _R = TypeVar("_R")
 #  констант
 
 
-class BasicRegistry(ABC, Generic[_K, _T]):
+class Registry(ABC, Generic[_K, _T]):
     """
     Базовый реестр
     """
@@ -60,7 +60,7 @@ class BasicRegistry(ABC, Generic[_K, _T]):
         """
 
 
-class JSONFileRegistry(BasicRegistry[str, _T], Generic[_R, _T]):
+class JSONFileRegistry(Registry[str, _T], Generic[_R, _T]):
     """
     Реестр, сразу заполнивший значения из JSON-файла
     """
@@ -139,7 +139,7 @@ class PrimitiveTypeRegistry(JSONFileRegistry[_PrimitiveRaw, PrimitiveType]):
         return ret
 
 
-class CatalogRegistry(BasicRegistry[str, _T]):
+class CatalogRegistry(Registry[str, _T]):
     """
     Каталоговый Реестр[T] (ищет файл по имени в каталоге)
     """
@@ -201,7 +201,7 @@ class ProfileRegistry(CatalogRegistry[Profile]):
         )
 
 
-class PackageParser(BasicParser[PackageInstruction]):
+class PackageParser(Parser[PackageInstruction]):
     """Парсер пакета инструкций"""
 
     def __init__(self, primitives: PrimitiveTypeRegistry):

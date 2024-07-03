@@ -33,7 +33,7 @@ class Regex:
 _T = TypeVar("_T")
 
 
-class BasicParser(ABC, Generic[_T]):
+class Parser(ABC, Generic[_T]):
     """Базовый парсер bytelang"""
 
     COMMENT: Final[str] = "#"
@@ -108,7 +108,7 @@ class Statement:
         return f"{self.source_line.strip():32} {type_index:32} {heap_lexemes}"
 
 
-class Parser(BasicParser[Statement]):
+class StatementParser(Parser[Statement]):
 
     def __init__(self, error_handler: ErrorHandler):
         self.__err = error_handler.getChild(self.__class__.__name__)

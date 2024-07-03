@@ -4,7 +4,7 @@ from os import PathLike
 from typing import Optional
 
 from bytelang.handlers import ErrorHandler
-from bytelang.parsers import Parser
+from bytelang.parsers import StatementParser
 from bytelang.registries import EnvironmentsRegistry
 from bytelang.registries import PackageRegistry
 from bytelang.registries import PrimitiveTypeRegistry
@@ -19,11 +19,11 @@ class Compiler:
         self.__primitive_type_registry = PrimitiveTypeRegistry()
         self.__profile_registry = ProfileRegistry("json", self.__primitive_type_registry)
         self.__package_registry = PackageRegistry("blp", self.__primitive_type_registry)
-        self.environment_registry = EnvironmentsRegistry("json", self.__profile_registry, self.__package_registry)
+        self.__environment_registry = EnvironmentsRegistry("json", self.__profile_registry, self.__package_registry)
         # TODO остальные реестры
 
         self.__error_handler = ErrorHandler()
-        self.__lexical_analyzer = Parser(self.__error_handler)
+        self.__parser = StatementParser(self.__error_handler)
 
     def run(self, source_file: PathLike | str) -> bool:
         """
@@ -33,7 +33,7 @@ class Compiler:
         """
 
         with open(source_file) as f:
-            statements = self.__lexical_analyzer.run(f)
+            statements = self.__parser.run(f)
 
             print(ReprTool.column(statements))
 
@@ -42,31 +42,19 @@ class Compiler:
         return self.__error_handler.success()
 
     def setPrimitivesFile(self, filepath: PathLike | str) -> None:
-        """
-        Указать путь к файлу настройки примитивных типов
-        :param filepath:
-        """
+        """Указать путь к файлу настройки примитивных типов"""
         self.__primitive_type_registry.setFile(filepath)
 
     def setEnvironmentsFolder(self, folder: PathLike | str) -> None:
-        """
-        Указать путь к папке окружений
-        :param folder:
-        """
-        self.environment_registry.setFolder(folder)
+        """Указать путь к папке окружений"""
+        self.__environment_registry.setFolder(folder)
 
     def setPackagesFolder(self, folder: PathLike | str) -> None:
-        """
-        Указать путь к папке пакетов инструкций
-        :param folder:
-        """
+        """Указать путь к папке пакетов инструкций"""
         self.__package_registry.setFolder(folder)
 
     def setProfilesFolder(self, folder: PathLike | str) -> None:
-        """
-        Указать путь к папке профилей
-        :param folder:
-        """
+        """Указать путь к папке профилей"""
         self.__profile_registry.setFolder(folder)
 
     def getProgram(self) -> Optional[bytes]:
@@ -84,6 +72,4 @@ class Compiler:
             return self.__error_handler.getLog()
 
     def getInfoLog(self) -> str:
-        """
-        Получить подробную информацию о компиляции
-        """
+        """Получить подробную информацию о компиляции"""

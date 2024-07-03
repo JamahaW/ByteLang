@@ -17,7 +17,7 @@ from bytelang.tools import ReprTool
 
 
 @dataclass(frozen=True, kw_only=True)
-class BasicContent:
+class Content:
     """Абстрактный контент, загружаемый реестрами"""
 
     parent: str
@@ -38,7 +38,7 @@ class PrimitiveWriteType(Enum):
 
 
 @dataclass(frozen=True, kw_only=True)
-class PrimitiveType(BasicContent):
+class PrimitiveType(Content):
     """Примитивный тип данных"""
 
     INTEGER_FORMATS: ClassVar[dict[int, str]] = {
@@ -70,7 +70,7 @@ class PrimitiveType(BasicContent):
 
 
 @dataclass(frozen=True, kw_only=True)
-class Profile(BasicContent):
+class Profile(Content):
     """Профиль виртуальной машины"""
 
     max_program_length: Optional[int]
@@ -100,25 +100,15 @@ class InstructionArgument:
         return f"{self.primitive.__str__()}{self.POINTER_CHAR * self.is_pointer}"
 
     def transform(self, profile: Profile) -> InstructionArgument:
-        """
-        Получить аргумент с актуальным примитивным типом на основе профиля.
-        Если аргумент был указателем, то примитивный тип аргумента становиться таким же,
-        как и указатель heap в профиле.
-        В другом случае остаётся неизменным.
-        :param profile:
-        :return:
-        """
+        """Получить аргумент с актуальным примитивным типом на основе профиля."""
         if not self.is_pointer:
             return self
 
-        return InstructionArgument(
-            primitive=profile.pointer_heap,
-            is_pointer=self.is_pointer
-        )
+        return InstructionArgument(primitive=profile.pointer_heap, is_pointer=self.is_pointer)
 
 
 @dataclass(frozen=True, kw_only=True)
-class PackageInstruction(BasicContent):
+class PackageInstruction(Content):
     """Базовые сведения об инструкции"""
 
     arguments: tuple[InstructionArgument, ...]
@@ -128,12 +118,7 @@ class PackageInstruction(BasicContent):
         return f"{self.parent}::{self.name}{ReprTool.iter(self.arguments)}"
 
     def transform(self, index: int, profile: Profile) -> EnvironmentInstruction:
-        """
-        Создать инструкцию окружения на основе базовой и профиля
-        :param index:
-        :param profile:
-        :return:
-        """
+        """Создать инструкцию окружения на основе базовой и профиля"""
         return EnvironmentInstruction(
             parent=profile.name,
             name=self.name,
@@ -144,7 +129,7 @@ class PackageInstruction(BasicContent):
 
 
 @dataclass(frozen=True, kw_only=True)
-class EnvironmentInstruction(BasicContent):
+class EnvironmentInstruction(Content):
     """Инструкция окружения"""
 
     index: int
@@ -159,18 +144,18 @@ class EnvironmentInstruction(BasicContent):
 
 
 @dataclass(frozen=True, kw_only=True)
-class Package(BasicContent):
+class Package(Content):
     """Пакет инструкций"""
 
     instructions: tuple[PackageInstruction, ...]
-    """Базовые инструкции"""
+    """Набор инструкций"""
 
 
 @dataclass(frozen=True, kw_only=True)
-class Environment(BasicContent):
+class Environment(Content):
     """Окружение виртуальной машины"""
 
     profile: Profile
     """Профиль этого окружения (Настройки Виртуальной машины)"""
     instructions: dict[str, EnvironmentInstruction]
-    """Словарь инструкций окружения"""
+    """Инструкции окружения"""
