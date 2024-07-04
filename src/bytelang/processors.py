@@ -4,12 +4,14 @@ from dataclasses import dataclass
 from enum import Flag
 from enum import auto
 from os import PathLike
+from typing import Iterable
 from typing import Optional
 
 from bytelang.bytecodegenerator import ByteCodeGenerator
 from bytelang.codegenerator import CodeGenerator
 from bytelang.codegenerator import CodeInstruction
 from bytelang.codegenerator import ProgramData
+from bytelang.content import PrimitiveType
 from bytelang.handlers import BasicErrorHandler
 from bytelang.handlers import ErrorHandler
 from bytelang.parsers import StatementParser
@@ -18,6 +20,8 @@ from bytelang.registries import PackageRegistry
 from bytelang.registries import PrimitiveTypeRegistry
 from bytelang.registries import ProfileRegistry
 from bytelang.statement import Statement
+from bytelang.tools import ReprTool
+from bytelang.tools import StringBuilder
 
 
 class LogInfo(Flag):
@@ -54,10 +58,39 @@ class LogInfo(Flag):
 
 @dataclass(frozen=True, kw_only=True, repr=False)
 class CompileResult:
+    primitives: Iterable[PrimitiveType]
     statements: tuple[Statement, ...]
     instructions: tuple[CodeInstruction, ...]
     program_data: ProgramData
     bytecode: bytes
+    filepath: str
+
+    def getInfoLog(self, flags: LogInfo = LogInfo.ALL) -> str:
+        sb = StringBuilder()
+        env = self.program_data.environment
+
+        if LogInfo.PRIMITIVES in flags:
+            sb.append(ReprTool.headed("primitives", self.primitives, _repr=True))
+
+        if LogInfo.ENVIRONMENT_INSTRUCTIONS in flags:
+            sb.append(ReprTool.headed(f"instructions : {env.name}", env.instructions.values()))
+
+        if LogInfo.PROFILE in flags:
+            sb.append(ReprTool.title(f"profile : {env.profile.name}")).append(ReprTool.strDict(env.profile.__dict__, _repr=True))
+
+        if LogInfo.STATEMENTS in flags:
+            sb.append(ReprTool.headed(f"statements : {self.filepath}", self.statements))
+
+        if LogInfo.CONSTANTS in flags:
+            sb.append(ReprTool.title("constants")).append(ReprTool.strDict(self.program_data.constants))
+
+        if LogInfo.VARIABLES in flags:
+            sb.append(ReprTool.headed("variables", self.program_data.variables))
+
+        if LogInfo.CODE_INSTRUCTIONS in flags:
+            sb.append(ReprTool.headed(f"code instructions : {self.filepath}", self.instructions))
+
+        return sb.toString()
 
 
 class Compiler:
@@ -65,6 +98,7 @@ class Compiler:
 
     def __init__(self, error_handler: BasicErrorHandler, primitives: PrimitiveTypeRegistry, environments: EnvironmentsRegistry):
         self.__err = error_handler.getChild(self.__class__.__name__)
+        self.__primitives = primitives
         self.__parser = StatementParser(self.__err)
         self.__code_generator = CodeGenerator(self.__err, environments, primitives)
         self.__bytecode_generator = ByteCodeGenerator(self.__err)
@@ -78,10 +112,12 @@ class Compiler:
 
         if self.__err.success():
             return CompileResult(
+                primitives=self.__primitives.getValues(),
                 statements=statements,
                 instructions=instructions,
                 program_data=data,
-                bytecode=program
+                bytecode=program,
+                filepath=str(source_filepath)
             )
 
 

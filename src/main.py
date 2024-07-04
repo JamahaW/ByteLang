@@ -14,4 +14,4 @@ if __name__ == '__main__':
 
     result = bl.compile(base_folder / "examples_test/test.bls")
     print(bl.getErrorsLog())
-    print(result)
+    print(result.getInfoLog())

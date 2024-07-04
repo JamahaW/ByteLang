@@ -87,7 +87,7 @@ class ProgramData:
     environment: Environment
     start_address: int
     variables: tuple[Variable, ...]
-    constants: tuple[UniversalArgument, ...]
+    constants: dict[str, UniversalArgument]
 
 
 class CodeGenerator:
@@ -314,5 +314,5 @@ class CodeGenerator:
             environment=self.__env,
             start_address=self.__variable_offset,
             variables=tuple(self.__variables.values()),
-            constants=tuple(self.__constants.values())
+            constants=self.__constants
         )
