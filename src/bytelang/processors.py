@@ -106,7 +106,7 @@ class CompileResult:
         ins_by_addr = {ins.address: ins for ins in self.instructions}
         var_by_addr = {var.address: var for var in self.program_data.variables}
 
-        sb.append(ReprTool.title(f"bytecode : {self.bytecode_filepath}"))
+        sb.append(ReprTool.title(f"bytecode view : {self.bytecode_filepath}"))
 
         for address, byte in enumerate(self.bytecode):
             if address == 0:
@@ -163,7 +163,8 @@ class ByteLang:
 
     # TODO декомпиляция
     # TODO Генератор кода виртуальной машины на основе окружения
-    # TODO общий интерпретатор
+    # TODO generic интерпретатор
+    # TODO REPL режим
 
     def __init__(self) -> None:
         self.__primitive_type_registry = PrimitiveTypeRegistry()

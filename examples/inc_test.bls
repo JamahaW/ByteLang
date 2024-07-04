@@ -1,10 +1,13 @@
 # тестирование инкремента
 
 .env test_env
-.ptr i16 var 0
+
+.ptr i8 var 0
 
 inc var
+print var
 
+dec var
 print var
 
 exit 0
