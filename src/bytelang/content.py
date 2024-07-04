@@ -119,12 +119,15 @@ class PackageInstruction(Content):
 
     def transform(self, index: int, profile: Profile) -> EnvironmentInstruction:
         """Создать инструкцию окружения на основе базовой и профиля"""
+        args = tuple(arg.transform(profile) for arg in self.arguments)
+        size = profile.instruction_index.size + sum(arg.primitive.size for arg in args)
         return EnvironmentInstruction(
             parent=profile.name,
             name=self.name,
             index=index,
             package=self.parent,
-            arguments=tuple(arg.transform(profile) for arg in self.arguments)
+            arguments=args,
+            size=size
         )
 
 
@@ -138,9 +141,14 @@ class EnvironmentInstruction(Content):
     """Пакет этой команды"""
     arguments: tuple[InstructionArgument, ...]
     """Аргументы окружения. Если тип был указателем, примитивный тип стал соответствовать типу указателя профиля окружения"""
+    size: int
+    """Размер инструкции в байтах"""
+
+    def generalInfo(self) -> str:
+        return f"[{self.size}B] {self.package}::{self.name}@{self.index}"
 
     def __repr__(self) -> str:
-        return f"{self.package}::{self.name}@{self.index}{ReprTool.iter(self.arguments)}"
+        return f"{self.generalInfo()}{ReprTool.iter(self.arguments)}"
 
 
 @dataclass(frozen=True, kw_only=True)

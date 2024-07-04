@@ -11,23 +11,25 @@ from bytelang.tools import ReprTool
 
 
 class Regex:
-    IDENTIFIER = r"[_a-zA-Z\d]+"
+    IDENTIFIER = r"^[a-zA-Z_][a-zA-Z\d_]*$"
     CHAR = r"^'.'$"
-    INTEGER = r"^[+-]?[1-9][\d_]+$"
+    INTEGER = r"^0$|^([+-]?[1-9][\d_]*)$"
     EXPONENT = r"^[-+]?\d+[.]\d+([eE][-+]?\d+)?$"
     HEX_VALUE = r"^0[xX][_\da-fA-F]+$"
-    OCT_VALUE = r"^[+-]?0[_0-8]+$"
+    OCT_VALUE = r"^[+-]?0[_0-7]+$"
     BIN_VALUE = r"^0[bB][_01]+$"
+
+    NAME = r"[_a-zA-Z\d]+"
 
 
 class StatementType(Enum):
     """Виды выражений"""
 
-    DIRECTIVE_USE = f"[.]{Regex.IDENTIFIER}"
+    DIRECTIVE_USE = f"[.]{Regex.NAME}"
     """Использование директивы"""
-    MARK_DECLARE = f"{Regex.IDENTIFIER}:"
+    MARK_DECLARE = f"{Regex.NAME}:"
     """Установка метки"""
-    INSTRUCTION_CALL = Regex.IDENTIFIER
+    INSTRUCTION_CALL = Regex.NAME
     """Вызов инструкции"""
 
     def __repr__(self) -> str:

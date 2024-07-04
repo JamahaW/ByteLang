@@ -60,7 +60,7 @@ class StatementParser(Parser[Statement]):
     def __matchStatementType(self, lexeme: str, index: int, line_source: str) -> tuple[StatementType, str] | tuple[None, None]:
         for statement_type in StatementType:
             if m := re.fullmatch(statement_type.value, lexeme):
-                w = re.search(Regex.IDENTIFIER, m.string)
+                w = re.search(Regex.NAME, m.string)
                 return statement_type, w.string[w.start():w.end()]
 
         self.__err.writeLineAt(line_source, index, f"Не удалось определить тип выражения: '{lexeme}'")

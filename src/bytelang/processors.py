@@ -41,8 +41,8 @@ class Compiler:
         code_ins = self.__code_generator.run(statements)
         print(ReprTool.headed("instructions", code_ins))
 
-        print(ReprTool.headed("constants", self.__code_generator.__dict__["_CodeGenerator__constants"].items()))
-        print(ReprTool.headed("constants", self.__code_generator.__dict__["_CodeGenerator__variables"].values()))
+        print(ReprTool.headed("_CodeGenerator__constants", self.__code_generator.__dict__["_CodeGenerator__constants"].items()))
+        print(ReprTool.headed("_CodeGenerator__variables", self.__code_generator.__dict__["_CodeGenerator__variables"].values()))
 
         # TODO доделать
 

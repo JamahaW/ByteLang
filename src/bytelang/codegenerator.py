@@ -7,6 +7,7 @@ from typing import Optional
 
 from bytelang.content import Environment
 from bytelang.content import EnvironmentInstruction
+from bytelang.content import InstructionArgument
 from bytelang.content import PrimitiveType
 from bytelang.content import PrimitiveWriteType
 from bytelang.handlers import BasicErrorHandler
@@ -17,6 +18,7 @@ from bytelang.statement import Statement
 from bytelang.statement import StatementType
 from bytelang.statement import UniversalArgument
 from bytelang.tools import Filter
+from bytelang.tools import ReprTool
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -27,6 +29,13 @@ class CodeInstruction:
     """Используемая инструкция"""
     arguments: tuple[bytes, ...]
     """Запакованные аргументы"""
+
+    def __repr__(self) -> str:
+        args_s = ReprTool.iter((
+            f"({arg_t}){ReprTool.prettyBytes(arg_v)}"
+            for arg_t, arg_v in zip(self.instruction.arguments, self.arguments)
+        ), l_paren="{ ", r_paren=" }")
+        return f"{self.instruction.generalInfo()} {args_s}"
 
 
 @dataclass(frozen=True)
@@ -64,7 +73,7 @@ class Variable:
     """Значение"""
 
     def __repr__(self) -> str:
-        return f"{self.primitive!s}@{self.address} {self.identifier} = {self.value.hex('_', 2).upper()}"
+        return f"{self.primitive!s} {self.identifier}@{self.address} = {ReprTool.prettyBytes(self.value)}"
 
 
 class CodeGenerator:
@@ -83,6 +92,8 @@ class CodeGenerator:
         self.__constants = dict[str, UniversalArgument]()
 
         self.__env: Optional[Environment] = None
+
+        self.__mark_offset_isolated: Optional[int] = None
         self.__variable_offset: Optional[int] = None
 
         self.__variables = dict[str, Variable]()
@@ -110,6 +121,13 @@ class CodeGenerator:
             StatementType.INSTRUCTION_CALL: self.__processInstruction
         }
 
+    def __checkArgumentCount(self, statement: Statement, need: tuple) -> None:
+        need = len(need)
+        got = len(statement.arguments)
+
+        if need != got:
+            self.__err.writeStatement(statement, f"Invalid arg count. Need {need} (got {got})")
+
     def __checkNameAvailable(self, statement: Statement, name: str) -> None:
         if name in self.__constants.keys() or name in self.__env.instructions.keys():
             self.__err.writeStatement(statement, f"Идентификатор {name} уже используется")
@@ -130,9 +148,14 @@ class CodeGenerator:
 
         self.__constants[name] = value
 
-    def __writeArgument(self, statement: Statement, argument: UniversalArgument, primitive: PrimitiveType) -> Optional[bytes]:
+    def __writeArgumentFromPrimitive(self, statement: Statement, argument: UniversalArgument, primitive: PrimitiveType) -> Optional[bytes]:
         if argument.identifier:
-            return self.__writeArgument(statement, self.__constants[argument.identifier], primitive)
+            self.__checkNameExist(statement, argument.identifier)
+
+            if self.__err.failed():
+                return
+
+            return self.__writeArgumentFromPrimitive(statement, self.__constants[argument.identifier], primitive)
 
         v = argument.exponent if primitive.write_type == PrimitiveWriteType.exponent else argument.integer
 
@@ -141,6 +164,12 @@ class CodeGenerator:
 
         except Exception as e:
             self.__err.writeStatement(statement, f"Не удалось выполнить преобразование: {e}")
+
+    def __writeArgumentFromInstructionArg(self, statement: Statement, i: int, u_arg: UniversalArgument, i_arg: InstructionArgument) -> Optional[bytes]:
+        if i_arg.is_pointer and u_arg.identifier not in self.__variables:
+            self.__err.writeStatement(statement, f"Аргумент ({i}) Обращение по указателю с помощью сырого значения недопустимо")
+
+        return self.__writeArgumentFromPrimitive(statement, u_arg, i_arg.primitive)
 
     def __directiveSetEnvironment(self, statement: Statement) -> None:
         if self.__env is not None:
@@ -155,7 +184,9 @@ class CodeGenerator:
         except Exception as e:
             self.__err.writeStatement(statement, f"Не удалось загрузить окружение {env_name}\n{e}")
 
-        self.__variable_offset = self.__env.profile.pointer_heap.size
+        init_offset = self.__env.profile.pointer_heap.size
+        self.__variable_offset = int(init_offset)
+        self.__mark_offset_isolated = int(init_offset)
 
     def __directiveDeclareConstant(self, statement: Statement) -> None:
         name, value = statement.arguments
@@ -177,7 +208,7 @@ class CodeGenerator:
         if self.__variable_offset is None:
             self.__err.writeStatement(statement, "variable offset index undefined. Must select env")
 
-        arg_value = self.__writeArgument(statement, init_value, primitive)
+        arg_value = self.__writeArgumentFromPrimitive(statement, init_value, primitive)
 
         if self.__err.failed():
             return
@@ -198,9 +229,8 @@ class CodeGenerator:
             self.__err.writeStatement(statement, f"Unknown directive: {statement.head}")
             return
 
-        if (need := len(directive.arguments)) != (got := len(statement.arguments)):
-            self.__err.writeStatement(statement, f"Invalid arg count need {need} (got {got})")
-            return
+        self.__err.begin()
+        self.__checkArgumentCount(statement, directive.arguments)
 
         self.__err.begin()
 
@@ -209,19 +239,54 @@ class CodeGenerator:
             s_arg: UniversalArgument
 
             if s_arg.type not in d_arg.type:
-                self.__err.writeStatement(statement, f"Incorrect Directive Argument at {i} type: {s_arg.type}. expected: {d_arg.type}")
+                self.__err.writeStatement(statement, f"Incorrect Directive Argument at {i + 1} type: {s_arg.type}. expected: {d_arg.type}")
 
         if not self.__err.failed():
             directive.handler(statement)
 
-    def __processMark(self, statement: Statement) -> None:
-        pass
+    def __getMarkOffset(self) -> int:
+        return self.__variable_offset + self.__mark_offset_isolated
 
-    def __processInstruction(self, statement: Statement) -> CodeInstruction:
-        pass
+    def __processMark(self, statement: Statement) -> None:
+        # TODO отлавливать неверное использование меток (__mark_offset < __variable_offset)
+        self.__addConstant(statement, statement.head, UniversalArgument.fromInteger(self.__getMarkOffset()))
+
+    def __processInstruction(self, statement: Statement) -> Optional[CodeInstruction]:
+        self.__err.begin()
+
+        if self.__env is None:
+            self.__err.writeStatement(statement, "no env (need) select env")
+            return
+
+        if (instruction := self.__env.instructions.get(statement.head)) is None:
+            self.__err.writeStatement(statement, f"unknown instruction: {statement.head}")
+            return
+
+        self.__err.begin()
+        self.__checkArgumentCount(statement, instruction.arguments)
+
+        if self.__err.failed():
+            return
+
+        self.__err.begin()
+
+        code_ins_args = tuple(
+            self.__writeArgumentFromInstructionArg(statement, i + 1, s_arg, i_arg)
+            for i, (i_arg, s_arg) in enumerate(zip(instruction.arguments, statement.arguments))
+        )
+
+        if self.__err.failed():
+            return
+
+        self.__mark_offset_isolated += instruction.size
+        return CodeInstruction(instruction=instruction, arguments=code_ins_args)
 
     def __reset(self) -> None:
         self.__constants.clear()
+        self.__variables.clear()
+        self.__mark_offset_isolated = None
+        self.__variable_offset = None
+        self.__env = None
 
     def run(self, statements: Iterable[Statement]) -> Iterable[CodeInstruction]:
         self.__reset()

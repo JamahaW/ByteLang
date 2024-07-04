@@ -3,20 +3,22 @@
 .def A 10
 .def B 25
 
-.def Y_VALUE 123
+.def Y_VALUE 123.5
 
-.ptr i64 x -123456789
+.ptr i32 x 07
 .ptr u8 y Y_VALUE
-
-write_BYTE 'c'
-write_BYTE 'o'
-write_BYTE 'l'
-write_BYTE 'a'
+.ptr f32 z 12
+.ptr u8 w 9
 
 __start__:
 
+    write_BYTE 'c'
+    write_BYTE 'o'
+    write_BYTE 'l'
+    write_BYTE 'a'
+
     test x A 0b1110
-    test y B x 0123
+    test y B x
 
 __end__:
 

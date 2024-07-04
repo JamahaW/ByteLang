@@ -56,3 +56,7 @@ class ReprTool:
     @staticmethod
     def headed(name: str, i: Iterable, *, length: int = 120, fill: str = "-") -> str:
         return f"{f' <<< {name} >>> ':{fill}^{length}}\n{ReprTool.column(i)}\n"
+
+    @staticmethod
+    def prettyBytes(b: bytes) -> str:
+        return b.hex("_", 2).upper()
