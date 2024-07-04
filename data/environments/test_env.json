@@ -2,6 +2,7 @@
   "profile": "avr",
   "packages": [
     "base",
+    "math",
     "io"
   ]
 }

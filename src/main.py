@@ -20,8 +20,13 @@ if __name__ == '__main__':
         result = bl.compile(base_folder / "examples_test" / f_in, out)
 
         if errors := bl.getErrorsLog():
+            print(errors)
             FileTool.save(f"{out}_errors.txt", errors)
 
-        FileTool.save(f"{out}_log.txt", result.getInfoLog())
+        else:
+            log = result.getInfoLog()
+            print(log)
+            FileTool.save(f"{out}_log.txt", log)
 
-    run("fib.bls")
+
+    run("inc_test.bls")
