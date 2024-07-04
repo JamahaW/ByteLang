@@ -1,0 +1,79 @@
+-------------------------------------------------- <<< primitives >>> --------------------------------------------------
+  0: [unsigned 8-bit] basic::u8@0
+  1: [signed 8-bit] basic::i8@1
+  2: [unsigned 16-bit] basic::u16@2
+  3: [signed 16-bit] basic::i16@3
+  4: [unsigned 32-bit] basic::u32@4
+  5: [signed 32-bit] basic::i32@5
+  6: [unsigned 64-bit] basic::u64@6
+  7: [signed 64-bit] basic::i64@7
+  8: [exponent 32-bit] basic::f32@8
+  9: [exponent 64-bit] basic::f64@9
+
+------------------------------------------- <<< instructions : test_env >>> --------------------------------------------
+  0: [2B] base::exit@0(basic::u8)
+  1: [2B] base::delay@1(basic::u8*)
+  2: [2B] io::print@2(basic::u8*)
+  3: [2B] io::input@3(basic::u8*)
+  4: [2B] io::write@4(basic::u8*)
+  5: [2B] io::write_BYTE@5(basic::u8)
+  6: [3B] io::write_WORD@6(basic::u16)
+  7: [5B] io::write_DWORD@7(basic::u32)
+  8: [9B] io::write_QWORD@8(basic::u64)
+
+------------------------------------------------ <<< profile : avr >>> -------------------------------------------------
+parent                  : 'A:\\Projects\\ByteLang\\data\\profiles\\avr.json'
+name                    : 'avr'
+max_program_length      : 512
+pointer_program         : [unsigned 16-bit] basic::u16@2
+pointer_heap            : [unsigned 8-bit] basic::u8@0
+instruction_index       : [unsigned 8-bit] basic::u8@0
+type_index              : [unsigned 8-bit] basic::u8@0
+--------------------------- <<< statements : A:\Projects\ByteLang\examples_test\test.bls >>> ---------------------------
+  0: .env test_env                    DIRECTIVE_USE@1                  env(<test_env>)
+  1: .ptr i32 abc 0xffFF              DIRECTIVE_USE@2                  ptr(<i32>, <abc>, { 65535 | 65535.0 })
+  2: __start__:                       MARK_DECLARE@3                   __start__
+  3: exit 0                           INSTRUCTION_CALL@4               exit({ 0 | 0.0 })
+  4: delay abc                        INSTRUCTION_CALL@5               delay(<abc>)
+  5: foo:                             MARK_DECLARE@6                   foo
+  6: exit 123                         INSTRUCTION_CALL@7               exit({ 123 | 123.0 })
+
+-------------------------------------------------- <<< constants >>> ---------------------------------------------------
+abc             : { 1 | 1.0 }
+__start__       : { 6 | 6.0 }
+foo             : { 10 | 10.0 }
+-------------------------------------------------- <<< variables >>> ---------------------------------------------------
+  0: basic::i32 abc@1 = FFFF_0000
+
+----------------------- <<< code instructions : A:\Projects\ByteLang\examples_test\test.bls >>> ------------------------
+  0: [2B] base::exit@0 { (basic::u8)00 }
+  1: [2B] base::delay@1 { (basic::u8*)01 }
+  2: [2B] base::exit@0 { (basic::u8)7B }
+
+------------------------------- <<< bytecode : A:\Projects\ByteLang\out\test.bls.blc >>> -------------------------------
+
+#  program start address define
+0000: 06
+
+#  basic::i32 abc@1 = FFFF_0000
+0001: 05
+0002: FF
+0003: FF
+0004: 00
+0005: 00
+
+#  __start__:
+
+#  [2B] base::exit@0 { (basic::u8)00 }
+0006: 00
+0007: 00
+
+#  [2B] base::delay@1 { (basic::u8*)01 }
+0008: 01
+0009: 01
+
+#  foo:
+
+#  [2B] base::exit@0 { (basic::u8)7B }
+0010: 00
+0011: 7B

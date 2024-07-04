@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from io import StringIO
+from os import PathLike
 from pathlib import Path
 from typing import Iterable
 from typing import Mapping
@@ -42,7 +43,7 @@ class FileTool:
             f.write(_data)
 
     @classmethod
-    def saveBytes(cls, filepath: str, _data: bytes):
+    def saveBytes(cls, filepath: PathLike | str, _data: bytes):
         with open(filepath, "wb") as f:
             f.write(_data)
 
@@ -84,9 +85,9 @@ class StringBuilder(StringIO):
     def __init__(self) -> None:
         super().__init__()
 
-    def append(self, obj: object, sep: str = "\n") -> StringBuilder:
+    def append(self, obj: object, end: str = "\n") -> StringBuilder:
         self.write(obj.__str__())
-        self.write(sep)
+        self.write(end)
         return self
 
     def __str__(self) -> str:

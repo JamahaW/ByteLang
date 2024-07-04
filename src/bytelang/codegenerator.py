@@ -29,6 +29,8 @@ class CodeInstruction:
     """Используемая инструкция"""
     arguments: tuple[bytes, ...]
     """Запакованные аргументы"""
+    address: int
+    """адрес расположения инструкции"""
 
     def write(self, instruction_index: PrimitiveType) -> bytes:
         return instruction_index.write(self.instruction.index) + b"".join(self.arguments)
@@ -88,6 +90,7 @@ class ProgramData:
     start_address: int
     variables: tuple[Variable, ...]
     constants: dict[str, UniversalArgument]
+    marks: dict[int, str]
 
 
 class CodeGenerator:
@@ -105,6 +108,7 @@ class CodeGenerator:
 
         self.__env: Optional[Environment] = None
         self.__constants = dict[str, UniversalArgument]()
+        self.__marks_address = dict[int, str]()
         self.__variables = dict[str, Variable]()
 
         self.__mark_offset_isolated: Optional[int] = None
@@ -195,7 +199,7 @@ class CodeGenerator:
 
         init_offset = self.__env.profile.pointer_heap.size
         self.__variable_offset = int(init_offset)
-        self.__mark_offset_isolated = int(init_offset)
+        self.__mark_offset_isolated = 0
 
     def __directiveDeclareConstant(self, statement: Statement) -> None:
         name, value = statement.arguments
@@ -258,7 +262,9 @@ class CodeGenerator:
 
     def __processMark(self, statement: Statement) -> None:
         # TODO отлавливать неверное использование меток (__mark_offset < __variable_offset)
-        self.__addConstant(statement, statement.head, UniversalArgument.fromInteger(self.__getMarkOffset()))
+        mark_offset = self.__getMarkOffset()
+        self.__marks_address[mark_offset] = statement.head
+        self.__addConstant(statement, statement.head, UniversalArgument.fromInteger(mark_offset))
 
     def __processInstruction(self, statement: Statement) -> Optional[CodeInstruction]:
         self.__err.begin()
@@ -287,12 +293,14 @@ class CodeGenerator:
         if self.__err.failed():
             return
 
+        ret = CodeInstruction(instruction=instruction, arguments=code_ins_args, address=self.__getMarkOffset())
         self.__mark_offset_isolated += instruction.size
-        return CodeInstruction(instruction=instruction, arguments=code_ins_args)
+        return ret
 
     def __reset(self) -> None:
         self.__constants.clear()
         self.__variables.clear()
+        self.__marks_address.clear()
         self.__mark_offset_isolated = None
         self.__variable_offset = None
         self.__env = None
@@ -314,5 +322,6 @@ class CodeGenerator:
             environment=self.__env,
             start_address=self.__variable_offset,
             variables=tuple(self.__variables.values()),
-            constants=self.__constants
+            constants=self.__constants,
+            marks=self.__marks_address
         )

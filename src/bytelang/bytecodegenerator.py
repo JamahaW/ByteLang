@@ -1,9 +1,9 @@
 from typing import Iterable
 from typing import Optional
 
+from bytelang.codegenerator import CodeInstruction
 from bytelang.codegenerator import ProgramData
 from bytelang.handlers import BasicErrorHandler
-from bytelang.codegenerator import CodeInstruction
 
 
 class ByteCodeGenerator:

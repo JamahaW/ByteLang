@@ -1,29 +1,12 @@
 .env test_env
 
-.def A 10
-.def B 123.456
-
-.def SOME_VALUE B
-
-.ptr i32 x SOME_VALUE
-.ptr u8 y SOME_VALUE
-.ptr f32 z SOME_VALUE
-.ptr u8 w SOME_VALUE
-
-
+.ptr i32 abc 0xffFF
 
 __start__:
 
-    write_BYTE 'c'
-    write_BYTE 'o'
-    write_BYTE 'l'
-    write_BYTE 'a'
+    exit 0
 
-    test x A 0b1110
-    test y B x
+    delay abc
 
-    push x
-
-__end__:
-
-    exit 69.69E-6
+foo:
+    exit 123

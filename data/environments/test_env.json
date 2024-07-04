@@ -2,9 +2,6 @@
   "profile": "avr",
   "packages": [
     "base",
-    "io",
-    "stack",
-    "math",
-    "example"
+    "io"
   ]
 }
