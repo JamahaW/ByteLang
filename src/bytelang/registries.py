@@ -212,8 +212,8 @@ class PackageParser(Parser[PackageInstruction]):
     def begin(self, package_name: str) -> None:
         self.__package_name = package_name
 
-    def _parseLine(self, index: int, source_line: str, clean_line: str) -> Optional[PackageInstruction]:
-        name, *arg_types = clean_line.split()
+    def _parseLine(self, index: int, line: str) -> Optional[PackageInstruction]:
+        name, *arg_types = line.split()
 
         if name in self.__used_names:
             raise ValueError(f"redefinition of {self.__package_name}::{name}{ReprTool.iter(arg_types)} at line {index} ")

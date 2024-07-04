@@ -1,6 +1,17 @@
 import json
 from pathlib import Path
 from typing import Iterable
+from typing import Optional
+from typing import TypeVar
+
+_T = TypeVar("_T")
+
+
+class Filter:
+
+    @staticmethod
+    def notNone(i: Iterable[Optional[_T]]) -> Iterable[_T]:
+        return filter(None.__ne__, i)
 
 
 class FileTool:

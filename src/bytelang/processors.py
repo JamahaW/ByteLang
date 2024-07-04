@@ -3,6 +3,7 @@ from __future__ import annotations
 from os import PathLike
 from typing import Optional
 
+from bytelang.codegenerator import CodeGenerator
 from bytelang.handlers import ErrorHandler
 from bytelang.parsers import StatementParser
 from bytelang.registries import EnvironmentsRegistry
@@ -24,6 +25,7 @@ class Compiler:
 
         self.__error_handler = ErrorHandler()
         self.__parser = StatementParser(self.__error_handler)
+        self.__code_generator = CodeGenerator(self.__error_handler, self.__environment_registry, self.__primitive_type_registry)
 
     def run(self, source_file: PathLike | str) -> bool:
         """
@@ -33,9 +35,11 @@ class Compiler:
         """
 
         with open(source_file) as f:
-            statements = self.__parser.run(f)
+            statements = tuple(self.__parser.run(f))
 
-            print(ReprTool.column(statements))
+        print(ReprTool.headed("statements", statements))
+        code_ins = self.__code_generator.run(statements)
+        print(ReprTool.headed("instructions", code_ins))
 
         # TODO доделать
 

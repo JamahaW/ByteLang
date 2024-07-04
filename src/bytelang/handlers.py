@@ -4,6 +4,7 @@ from abc import ABC
 from abc import abstractmethod
 
 from bytelang.tools import ReprTool
+from bytelang.statement import Statement
 
 
 class BasicErrorHandler(ABC):
@@ -34,6 +35,9 @@ class BasicErrorHandler(ABC):
 
     def writeLineAt(self, line: str, index: int, message: str) -> None:
         self.write(f"{message} at {index} '{line.strip()}'")
+
+    def writeStatement(self, statement: Statement, message: str) -> None:
+        self.writeLineAt(statement.line, statement.index, message)
 
     def write(self, message: str) -> None:
         """Добавить ошибку"""

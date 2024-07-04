@@ -1,4 +1,5 @@
 .env example_env
+.env ;;;
 
 .def A 10
 .def B 25
