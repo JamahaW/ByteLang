@@ -65,11 +65,8 @@ class Compiler:
 
     def __init__(self, error_handler: BasicErrorHandler, primitives: PrimitiveTypeRegistry, environments: EnvironmentsRegistry):
         self.__err = error_handler.getChild(self.__class__.__name__)
-        self.__primitives = primitives
-        self.__environments = environments
-
         self.__parser = StatementParser(self.__err)
-        self.__code_generator = CodeGenerator(self.__err, self.__environments, self.__primitives)
+        self.__code_generator = CodeGenerator(self.__err, environments, primitives)
         self.__bytecode_generator = ByteCodeGenerator(self.__err)
 
     def run(self, source_filepath: PathLike | str) -> Optional[CompileResult]:
@@ -96,15 +93,15 @@ class ByteLang:
         self.__profile_registry = ProfileRegistry("json", self.__primitive_type_registry)
         self.__package_registry = PackageRegistry("blp", self.__primitive_type_registry)
         self.__environment_registry = EnvironmentsRegistry("json", self.__profile_registry, self.__package_registry)
-        self.__error_handler = ErrorHandler()
-        self.__compiler = Compiler(self.__error_handler, self.__primitive_type_registry, self.__environment_registry)
+        self.__errors_handler = ErrorHandler()
+        self.__compiler = Compiler(self.__errors_handler, self.__primitive_type_registry, self.__environment_registry)
 
     def compile(self, source_filepath: PathLike | str) -> Optional[CompileResult]:
         """
         Скомпилировать исходный код bls в байткод программу
         :param source_filepath: Путь к исходному файлу.
         """
-        self.__error_handler.reset()
+        self.__errors_handler.reset()
         return self.__compiler.run(source_filepath)
 
     def setPrimitivesFile(self, filepath: PathLike | str) -> None:
@@ -128,5 +125,5 @@ class ByteLang:
         Получить логи ошибок.
         :return лог ошибок или None, если ошибок не было
         """
-        if not self.__error_handler.success():
-            return self.__error_handler.getLog()
+        if not self.__errors_handler.success():
+            return self.__errors_handler.getLog()
