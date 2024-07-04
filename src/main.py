@@ -1,7 +1,7 @@
 from pathlib import PurePath
 
-from bytelang.processors import ByteLang
-from bytelang.processors import LogInfo
+from bytelang import ByteLang
+from bytelang.processors import LogFlag
 from bytelang.tools import FileTool
 
 # Рабочие папки
@@ -18,7 +18,7 @@ bl.setProfilesFolder(data_folder / "profiles")
 bl.setEnvironmentsFolder(data_folder / "environments")
 
 
-def run(filename: str, log_flags: LogInfo = LogInfo.ALL):
+def run(filename: str, log_flags: LogFlag = LogFlag.ALL):
     """Запустить компиляцию файла, вывести логи и ошибки"""
     out = out_folder / f"{filename}.blc"
     result = bl.compile(in_folder / filename, out)
@@ -28,4 +28,4 @@ def run(filename: str, log_flags: LogInfo = LogInfo.ALL):
     print(f"Компиляция завершена {status} {out}")
 
 
-run("inc_test.bls", LogInfo.PROGRAM_VALUES | LogInfo.BYTECODE)
+run("inc_test.bls", LogFlag.PROGRAM_VALUES | LogFlag.BYTECODE)

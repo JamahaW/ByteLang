@@ -59,7 +59,6 @@ class Directive:
 
     handler: Callable[[Statement], None]
     """Обработчик директивы"""
-
     arguments: tuple[DirectiveArgument, ...]
     """Параметры аргументов."""
 
@@ -94,12 +93,7 @@ class ProgramData:
 
 
 class CodeGenerator:
-    """
-    Исполнитель Директив. # TODO нужен исполнитель директив
-
-    Генератор промежуточного кода.
-    Вычисление констант.
-    """
+    """Генератор промежуточного кода."""
 
     def __init__(self, error_handler: BasicErrorHandler, environments: EnvironmentsRegistry, primitives: PrimitiveTypeRegistry) -> None:
         self.__err = error_handler.getChild(self.__class__.__name__)
@@ -111,7 +105,7 @@ class CodeGenerator:
         self.__marks_address = dict[int, str]()
         self.__variables = dict[str, Variable]()
 
-        self.__mark_offset_isolated: Optional[int] = None
+        self.__mark_offset_isolated: int = 0
         self.__variable_offset: Optional[int] = None
 
         __DIRECTIVE_ARG_ANY = DirectiveArgument("constant value or identifier", ArgumentValueType.ANY)
@@ -197,9 +191,7 @@ class CodeGenerator:
         except Exception as e:
             self.__err.writeStatement(statement, f"Не удалось загрузить окружение {env_name}\n{e}")
 
-        init_offset = self.__env.profile.pointer_heap.size
-        self.__variable_offset = int(init_offset)
-        self.__mark_offset_isolated = 0
+        self.__variable_offset = int(self.__env.profile.pointer_heap.size)
 
     def __directiveDeclareConstant(self, statement: Statement) -> None:
         name, value = statement.arguments
@@ -261,7 +253,6 @@ class CodeGenerator:
         return self.__variable_offset + self.__mark_offset_isolated
 
     def __processMark(self, statement: Statement) -> None:
-        # TODO отлавливать неверное использование меток (__mark_offset < __variable_offset)
         mark_offset = self.__getMarkOffset()
         self.__marks_address[mark_offset] = statement.head
         self.__addConstant(statement, statement.head, UniversalArgument.fromInteger(mark_offset))
@@ -301,7 +292,7 @@ class CodeGenerator:
         self.__constants.clear()
         self.__variables.clear()
         self.__marks_address.clear()
-        self.__mark_offset_isolated = None
+        self.__mark_offset_isolated = 0
         self.__variable_offset = None
         self.__env = None
 
@@ -314,14 +305,41 @@ class CodeGenerator:
 
     # noinspection PyTypeChecker
     def getProgramData(self) -> Optional[ProgramData]:
-        if self.__env is None:
-            self.__err.write("must select env")
+        if self.__env is not None:
+            return ProgramData(
+                environment=self.__env,
+                start_address=self.__variable_offset,
+                variables=tuple(self.__variables.values()),
+                constants=self.__constants,
+                marks=self.__marks_address
+            )
+
+        self.__err.write("must select env")
+
+
+class ByteCodeGenerator:
+
+    def __init__(self, error_handler: BasicErrorHandler) -> None:
+        self.__err = error_handler.getChild(self.__class__.__name__)
+
+    def run(self, instructions: Iterable[CodeInstruction], data: Optional[ProgramData]) -> Optional[bytes]:
+        if data is None:
+            self.__err.write("Program data is None")
             return
 
-        return ProgramData(
-            environment=self.__env,
-            start_address=self.__variable_offset,
-            variables=tuple(self.__variables.values()),
-            constants=self.__constants,
-            marks=self.__marks_address
-        )
+        ret = bytearray()
+        profile = data.environment.profile
+
+        ret.extend(profile.pointer_heap.write(data.start_address))
+
+        for v in data.variables:
+            ret.extend(v.write(profile.type_index))
+
+        for ins in instructions:
+            ret.extend(ins.write(profile.instruction_index))
+
+        if profile.max_program_length is not None and profile.max_program_length < len(ret):
+            self.__err.write(f"program size ({len(ret)}) out of {profile.max_program_length}")
+            return
+
+        return bytes(ret)
