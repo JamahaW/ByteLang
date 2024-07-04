@@ -13,7 +13,7 @@ from typing import Optional
 from typing import TextIO
 from typing import TypeVar
 
-from bytelang.handlers import ErrorHandler
+from bytelang.handlers import BasicErrorHandler
 from bytelang.statement import Regex
 from bytelang.statement import Statement
 from bytelang.statement import StatementType
@@ -63,7 +63,7 @@ class StatementParser(Parser[Statement]):
         Matcher(Regex.IDENTIFIER, lambda s: UniversalArgument.fromName(s)),
     )
 
-    def __init__(self, error_handler: ErrorHandler):
+    def __init__(self, error_handler: BasicErrorHandler):
         self.__err = error_handler.getChild(self.__class__.__name__)
 
     def _parseLine(self, index: int, line: str) -> Optional[Statement]:

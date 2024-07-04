@@ -30,6 +30,9 @@ class CodeInstruction:
     arguments: tuple[bytes, ...]
     """Запакованные аргументы"""
 
+    def write(self, instruction_index: PrimitiveType) -> bytes:
+        return instruction_index.write(self.instruction.index) + b"".join(self.arguments)
+
     def __repr__(self) -> str:
         args_s = ReprTool.iter((
             f"({arg_t}){ReprTool.prettyBytes(arg_v)}"
@@ -72,8 +75,19 @@ class Variable:
     value: bytes
     """Значение"""
 
+    def write(self, type_index: PrimitiveType) -> bytes:
+        return type_index.write(self.primitive.index) + self.value
+
     def __repr__(self) -> str:
         return f"{self.primitive!s} {self.identifier}@{self.address} = {ReprTool.prettyBytes(self.value)}"
+
+
+@dataclass(frozen=True, kw_only=True)
+class ProgramData:
+    environment: Environment
+    start_address: int
+    variables: tuple[Variable, ...]
+    constants: tuple[UniversalArgument, ...]
 
 
 class CodeGenerator:
@@ -155,7 +169,7 @@ class CodeGenerator:
         v = argument.exponent if primitive.write_type == PrimitiveWriteType.exponent else argument.integer
 
         try:
-            return primitive.packer.pack(v)
+            return primitive.write(v)
 
         except Exception as e:
             self.__err.writeStatement(statement, f"Не удалось выполнить преобразование: {e}")
@@ -283,9 +297,22 @@ class CodeGenerator:
         self.__variable_offset = None
         self.__env = None
 
-    def run(self, statements: Iterable[Statement]) -> Iterable[CodeInstruction]:
+    def run(self, statements: Iterable[Statement]) -> tuple[tuple[CodeInstruction, ...], Optional[ProgramData]]:
         self.__reset()
-        return Filter.notNone(self.__METHOD_BY_TYPE[s.type](s) for s in statements)
+        return (
+            tuple(Filter.notNone(self.__METHOD_BY_TYPE[s.type](s) for s in statements)),
+            self.getProgramData()
+        )
 
-    def getVariables(self) -> dict[str, Variable]:
-        return self.__variables
+    # noinspection PyTypeChecker
+    def getProgramData(self) -> Optional[ProgramData]:
+        if self.__env is None:
+            self.__err.write("must select env")
+            return
+
+        return ProgramData(
+            environment=self.__env,
+            start_address=self.__variable_offset,
+            variables=tuple(self.__variables.values()),
+            constants=tuple(self.__constants.values())
+        )

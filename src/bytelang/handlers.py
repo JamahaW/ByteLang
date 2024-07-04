@@ -3,8 +3,8 @@ from __future__ import annotations
 from abc import ABC
 from abc import abstractmethod
 
-from bytelang.tools import ReprTool
 from bytelang.statement import Statement
+from bytelang.tools import ReprTool
 
 
 class BasicErrorHandler(ABC):
@@ -26,11 +26,7 @@ class BasicErrorHandler(ABC):
         return self.__failed
 
     def getChild(self, name: str) -> BasicErrorHandler:
-        """
-        Получить дочерний обработчик ошибок от этого
-        :param name:
-        :return:
-        """
+        """Получить дочерний обработчик ошибок"""
         return ChildErrorHandler(name, self)
 
     def writeLineAt(self, line: str, index: int, message: str) -> None:
@@ -43,6 +39,10 @@ class BasicErrorHandler(ABC):
         """Добавить ошибку"""
         self.__failed = True
         self._appendMessage(message)
+
+    @abstractmethod
+    def success(self) -> bool:
+        """True если нет ошибок"""
 
     @abstractmethod
     def _appendMessage(self, message: str) -> None:
@@ -78,6 +78,9 @@ class ErrorHandler(BasicErrorHandler):
 
 class ChildErrorHandler(BasicErrorHandler):
     """Дочерний обработчик ошибок"""
+
+    def success(self) -> bool:
+        return self.__parent.success()
 
     def __init__(self, name: str, parent: BasicErrorHandler) -> None:
         super().__init__()

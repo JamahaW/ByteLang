@@ -10,6 +10,8 @@
 .ptr f32 z SOME_VALUE
 .ptr u8 w SOME_VALUE
 
+
+
 __start__:
 
     write_BYTE 'c'

@@ -62,6 +62,9 @@ class PrimitiveType(Content):
     packer: Struct
     """Упаковщик структуры"""
 
+    def write(self, v: int | float) -> bytes:
+        return self.packer.pack(v)
+
     def __repr__(self) -> str:
         return f"[{self.write_type} {self.size * 8}-bit] {self.__str__()}@{self.index}"
 
