@@ -89,14 +89,12 @@ class CodeGenerator:
         self.__environments = environments
         self.__primitives = primitives
 
-        self.__constants = dict[str, UniversalArgument]()
-
         self.__env: Optional[Environment] = None
+        self.__constants = dict[str, UniversalArgument]()
+        self.__variables = dict[str, Variable]()
 
         self.__mark_offset_isolated: Optional[int] = None
         self.__variable_offset: Optional[int] = None
-
-        self.__variables = dict[str, Variable]()
 
         __DIRECTIVE_ARG_ANY = DirectiveArgument("constant value or identifier", ArgumentValueType.ANY)
 
@@ -122,10 +120,7 @@ class CodeGenerator:
         }
 
     def __checkArgumentCount(self, statement: Statement, need: tuple) -> None:
-        need = len(need)
-        got = len(statement.arguments)
-
-        if need != got:
+        if (need := len(need)) != (got := len(statement.arguments)):
             self.__err.writeStatement(statement, f"Invalid arg count. Need {need} (got {got})")
 
     def __checkNameAvailable(self, statement: Statement, name: str) -> None:
@@ -239,7 +234,7 @@ class CodeGenerator:
             s_arg: UniversalArgument
 
             if s_arg.type not in d_arg.type:
-                self.__err.writeStatement(statement, f"Incorrect Directive Argument at {i + 1} type: {s_arg.type}. expected: {d_arg.type}")
+                self.__err.writeStatement(statement, f"Incorrect Directive Argument at {i + 1} type: {s_arg.type}. expected: {d_arg.type} ({d_arg.name})")
 
         if not self.__err.failed():
             directive.handler(statement)
@@ -291,3 +286,6 @@ class CodeGenerator:
     def run(self, statements: Iterable[Statement]) -> Iterable[CodeInstruction]:
         self.__reset()
         return Filter.notNone(self.__METHOD_BY_TYPE[s.type](s) for s in statements)
+
+    def getVariables(self) -> dict[str, Variable]:
+        return self.__variables
