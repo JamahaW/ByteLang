@@ -1,11 +1,12 @@
-.env example_env
-.env ;;;
+.env test_env
 
 .def A 10
 .def B 25
 
-.ptr i16 x -12333
-.ptr u8 y 0x420
+.def Y_VALUE 123
+
+.ptr i64 x -123456789
+.ptr u8 y Y_VALUE
 
 write_BYTE 'c'
 write_BYTE 'o'

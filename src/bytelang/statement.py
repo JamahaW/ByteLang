@@ -67,9 +67,9 @@ class UniversalArgument:
 
     def __repr__(self) -> str:
         if self.identifier is None:
-            return f"{{{self.integer} | {self.exponent}}}"
+            return f"{{ {self.integer} | {self.exponent} }}"
 
-        return f"{self.identifier!r}"
+        return f"<{self.identifier}>"
 
 
 @dataclass(frozen=True, kw_only=True)
