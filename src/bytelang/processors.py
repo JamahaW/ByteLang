@@ -161,6 +161,10 @@ class Compiler:
 class ByteLang:
     """API byteLang"""
 
+    # TODO декомпиляция
+    # TODO Генератор кода виртуальной машины на основе окружения
+    # TODO общий интерпретатор
+
     def __init__(self) -> None:
         self.__primitive_type_registry = PrimitiveTypeRegistry()
         self.__profile_registry = ProfileRegistry("json", self.__primitive_type_registry)
@@ -170,11 +174,7 @@ class ByteLang:
         self.__compiler = Compiler(self.__errors_handler, self.__primitive_type_registry, self.__environment_registry)
 
     def compile(self, source_filepath: PathLike | str, bytecode_filepath: PathLike | str) -> Optional[CompileResult]:
-        """
-        Скомпилировать исходный код bls в байткод программу
-        :param bytecode_filepath: путь сохранения байткода
-        :param source_filepath: Путь к исходному файлу.
-        """
+        """Скомпилировать исходный код bls в байткод программу"""
         self.__errors_handler.reset()
         return self.__compiler.run(source_filepath, bytecode_filepath)
 
