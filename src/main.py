@@ -24,4 +24,4 @@ if __name__ == '__main__':
 
         FileTool.save(f"{out}_log.txt", result.getInfoLog())
 
-    run("test.bls")
+    run("fib.bls")

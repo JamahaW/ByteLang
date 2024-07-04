@@ -64,6 +64,9 @@ class ReprTool:
 
     @classmethod
     def strDict(cls, _dict: Mapping[str, object], /, *, _round: int = 8, sep=": ", _repr: bool = False) -> str:
+        if not len(_dict):
+            return ""
+
         k_len = max(map(len, _dict.keys())) // _round * _round + _round
         return '\n'.join(f"{key:{k_len}}{sep}{cls.__viewMode(value, _repr)}" for key, value in _dict.items())
 
