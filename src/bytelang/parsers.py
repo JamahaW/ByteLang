@@ -3,6 +3,9 @@ from __future__ import annotations
 import re
 from abc import ABC
 from abc import abstractmethod
+from dataclasses import dataclass
+from typing import Callable
+from typing import ClassVar
 from typing import Final
 from typing import Generic
 from typing import Iterable
@@ -39,7 +42,26 @@ class Parser(ABC, Generic[_T]):
         """Обработать чистую строчку кода и вернуть абстрактный токен"""
 
 
+@dataclass(frozen=True)
+class Matcher:
+    __pattern: str
+    __handler: Callable[[str], UniversalArgument]
+
+    def process(self, lexeme: str) -> Optional[UniversalArgument]:
+        if re.match(self.__pattern, lexeme):
+            return self.__handler(lexeme)
+
+
 class StatementParser(Parser[Statement]):
+    __MATCHERS: ClassVar[tuple[Matcher, ...]] = (
+        Matcher(Regex.INTEGER, lambda s: UniversalArgument.fromInteger(int(s, 10))),
+        Matcher(Regex.BIN_VALUE, lambda s: UniversalArgument.fromInteger(int(s, 2))),
+        Matcher(Regex.OCT_VALUE, lambda s: UniversalArgument.fromInteger(int(s, 8))),
+        Matcher(Regex.HEX_VALUE, lambda s: UniversalArgument.fromInteger(int(s, 16))),
+        Matcher(Regex.EXPONENT, lambda s: UniversalArgument.fromExponent(float(s))),
+        Matcher(Regex.CHAR, lambda s: UniversalArgument.fromExponent(ord(s[1]))),
+        Matcher(Regex.IDENTIFIER, lambda s: UniversalArgument.fromName(s)),
+    )
 
     def __init__(self, error_handler: ErrorHandler):
         self.__err = error_handler.getChild(self.__class__.__name__)
@@ -66,27 +88,9 @@ class StatementParser(Parser[Statement]):
         self.__err.writeLineAt(line_source, index, f"Не удалось определить тип выражения: '{lexeme}'")
         return None, None
 
-    # FIXME каскад if
     def __matchStatementArg(self, lexeme: str, i: int, line_index: int, line_source: str) -> Optional[UniversalArgument]:
-        if re.match(Regex.INTEGER, lexeme):
-            return UniversalArgument.fromInteger(int(lexeme, 10))
-
-        if re.match(Regex.BIN_VALUE, lexeme):
-            return UniversalArgument.fromInteger(int(lexeme, 2))
-
-        if re.match(Regex.OCT_VALUE, lexeme):
-            return UniversalArgument.fromInteger(int(lexeme, 8))
-
-        if re.match(Regex.HEX_VALUE, lexeme):
-            return UniversalArgument.fromInteger(int(lexeme, 16))
-
-        if re.match(Regex.EXPONENT, lexeme):
-            return UniversalArgument.fromExponent(float(lexeme))
-
-        if re.match(Regex.CHAR, lexeme):
-            return UniversalArgument.fromInteger(ord(lexeme[1]))  # 'c'
-
-        if re.fullmatch(Regex.IDENTIFIER, lexeme):
-            return UniversalArgument.fromName(lexeme)
+        for matcher in self.__MATCHERS:
+            if ret := matcher.process(lexeme):
+                return ret
 
         self.__err.writeLineAt(line_source, line_index, f"Запись Аргумента ({i}) '{lexeme}' не распознана")

@@ -167,7 +167,7 @@ class CodeGenerator:
 
     def __writeArgumentFromInstructionArg(self, statement: Statement, i: int, u_arg: UniversalArgument, i_arg: InstructionArgument) -> Optional[bytes]:
         if i_arg.is_pointer and u_arg.identifier not in self.__variables:
-            self.__err.writeStatement(statement, f"Аргумент ({i}) Обращение по указателю с помощью сырого значения недопустимо")
+            self.__err.writeStatement(statement, f"Аргумент ({i}) Обращение по указателю ({i_arg}) с помощью сырого значения недопустимо")
 
         return self.__writeArgumentFromPrimitive(statement, u_arg, i_arg.primitive)
 

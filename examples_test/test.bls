@@ -1,14 +1,14 @@
 .env test_env
 
 .def A 10
-.def B 25
+.def B 123.456
 
-.def Y_VALUE 123.5
+.def SOME_VALUE B
 
-.ptr i32 x 07
-.ptr u8 y Y_VALUE
-.ptr f32 z 12
-.ptr u8 w 9
+.ptr i32 x SOME_VALUE
+.ptr u8 y SOME_VALUE
+.ptr f32 z SOME_VALUE
+.ptr u8 w SOME_VALUE
 
 __start__:
 
@@ -19,6 +19,8 @@ __start__:
 
     test x A 0b1110
     test y B x
+
+    push x
 
 __end__:
 
