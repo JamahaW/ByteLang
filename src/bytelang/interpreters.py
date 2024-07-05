@@ -13,7 +13,18 @@ from bytelang.tools import FileTool
 
 
 class Interpreter:
-    def __init__(self, env: Environment, instructions: tuple[Callable[[], None], ...]) -> None:
+    def __init__(self, env: Environment, primitives: PrimitivesRegistry, instructions: tuple[Callable[[Interpreter], None], ...]) -> None:
+        self.i8 = primitives.get("i8")
+        self.u8 = primitives.get("u8")
+        self.i16 = primitives.get("i16")
+        self.u16 = primitives.get("u16")
+        self.i32 = primitives.get("i32")
+        self.u32 = primitives.get("u32")
+        self.i64 = primitives.get("i64")
+        self.u64 = primitives.get("u64")
+        self.f32 = primitives.get("f32")
+        self.f64 = primitives.get("f64")
+
         self.__instructions = instructions
 
         self.__primitive_instruction_index = env.profile.instruction_index
@@ -82,74 +93,64 @@ class Interpreter:
         self.__program_pointer = self.ipReadHeapPointer()
 
         while self.__running:
-            self.__instructions[self.ipReadInstructionIndex()].__call__()
+            self.__instructions[self.ipReadInstructionIndex()].__call__(self)
 
         return self.__exit_code
-
-
-class STDInterpreter(Interpreter):
-
-    def __init__(self, env: Environment, primitives: PrimitivesRegistry, instructions: tuple[Callable[[], None], ...]):
-        super().__init__(env, instructions)
-        self.i8 = primitives.get("i8")
-        self.u8 = primitives.get("u8")
-        self.i16 = primitives.get("i16")
-        self.u16 = primitives.get("u16")
-        self.i32 = primitives.get("i32")
-        self.u32 = primitives.get("u32")
-        self.i64 = primitives.get("i64")
-        self.u64 = primitives.get("u64")
-        self.f32 = primitives.get("f32")
-        self.f64 = primitives.get("f64")
-
-
-class TestInterpreter(STDInterpreter):
-
-    def __init__(self, env: Environment, primitives: PrimitivesRegistry):
-        super().__init__(env, primitives, (
-            self.__exit,
-            self.__print,
-            self.__print8,
-            self.__inc,
-            self.__write,
-            self.__push32,
-            self.__pop32,
-            self.__pop16,
-            self.__pop8,
-        ))
 
     @staticmethod
     def stdoutWrite(value: str) -> None:
         print(value, end="")
 
-    def __exit(self) -> None:
-        self.setExitCode(self.ipReadPrimitive(self.u8))
-
     def IPPrint(self, primitive: PrimitiveType) -> None:
         self.stdoutWrite(f"|> {self.ipReadVariable(primitive)}\n")
 
-    def __print(self) -> None:
-        self.IPPrint(self.u32)
 
-    def __print8(self) -> None:
-        self.IPPrint(self.u8)
+def __exit(self) -> None:
+    self.setExitCode(self.ipReadPrimitive(self.u8))
 
-    def __inc(self) -> None:
-        address = self.ipReadHeapPointer()
-        value = self.addressReadPrimitive(address, self.i16)
-        self.addressWritePrimitive(address, self.i16, value + 1)
 
-    def __write(self) -> None:
-        self.stdoutWrite(chr(self.ipReadPrimitive(self.u8)))
+def __print(self) -> None:
+    self.IPPrint(self.u32)
 
-    def __push32(self) -> None:
-        self.ipStackPush(self.u32)
 
-    def __pop32(self) -> None:
-        self.ipVariableStackPop(self.u32)
+def __print8(self) -> None:
+    self.IPPrint(self.u8)
 
-    def __pop16(self) -> None:
-        self.ipVariableStackPop(self.u16)
 
-    def __pop8(self) -> None:
-        self.ipVariableStackPop(self.u8)
+def __inc(self) -> None:
+    address = self.ipReadHeapPointer()
+    value = self.addressReadPrimitive(address, self.i16)
+    self.addressWritePrimitive(address, self.i16, value + 1)
+
+
+def __write(self) -> None:
+    self.stdoutWrite(chr(self.ipReadPrimitive(self.u8)))
+
+
+def __push32(self) -> None:
+    self.ipStackPush(self.u32)
+
+
+def __pop32(self) -> None:
+    self.ipVariableStackPop(self.u32)
+
+
+def __pop16(self) -> None:
+    self.ipVariableStackPop(self.u16)
+
+
+def __pop8(self) -> None:
+    self.ipVariableStackPop(self.u8)
+
+
+INSTRUCTIONS = (
+    __exit,
+    __print,
+    __print8,
+    __inc,
+    __write,
+    __push32,
+    __pop32,
+    __pop16,
+    __pop8,
+)

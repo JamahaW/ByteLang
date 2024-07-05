@@ -2,7 +2,8 @@ from os import PathLike
 from pathlib import PurePath
 
 from bytelang import ByteLang
-from bytelang.interpreters import TestInterpreter
+from bytelang.interpreters import INSTRUCTIONS
+from bytelang.interpreters import Interpreter
 from bytelang.processors import LogFlag
 from bytelang.tools import FileTool
 
@@ -30,7 +31,7 @@ def run(filename: str, log_flags: LogFlag = LogFlag.ALL) -> None:
 
 
 def execute(bytecode_filepath: PathLike, env: str) -> None:
-    vm = TestInterpreter(bl.environment_registry.get(env), bl.primitives_registry)
+    vm = Interpreter(bl.environment_registry.get(env), bl.primitives_registry, INSTRUCTIONS)
     ret = vm.run(bytecode_filepath)
     print(f"Программа Bytelang завершена с кодом {ret}")
 
