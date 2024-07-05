@@ -22,10 +22,13 @@ def run(filename: str, log_flags: LogFlag = LogFlag.ALL):
     """Запустить компиляцию файла, вывести логи и ошибки"""
     out = out_folder / f"{filename}.blc"
     result = bl.compile(in_folder / filename, out)
-    log = result.getInfoLog(log_flags) if result else bl.getErrorsLog()
-    status = "Успешно" if result else "Неуспешно"
+    status, log = ("Успешно", result.getInfoLog(log_flags)) if result else ("Неуспешно", bl.getErrorsLog())
     FileTool.save(f"{out}.txt", log)
     print(f"Компиляция завершена {status} {out}")
 
 
-run("var_test.bls", LogFlag.CONSTANTS | LogFlag.BYTECODE)
+run("test_vm.bls", LogFlag.CONSTANTS | LogFlag.BYTECODE | LogFlag.ENVIRONMENT_INSTRUCTIONS)
+
+
+vm = bl.getInterpreter("test_env", out_folder / "test_vm.bls.blc")
+vm.run()

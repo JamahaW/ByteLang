@@ -1,0 +1,64 @@
+------------------------------------------- <<< instructions : test_env >>> --------------------------------------------
+  0: [2B] base::exit@0(std::u8)
+  1: [2B] base::print@1(std::u8*(std::i16))
+  2: [2B] base::inc@2(std::u8*(std::i16))
+  3: [2B] base::write@3(std::u8)
+
+-------------------------------------------------- <<< constants >>> ---------------------------------------------------
+
+---------------------- <<< bytecode view : A:\Projects\ByteLang\examples\out\test_vm.bls.blc >>> -----------------------
+
+#  program start address define
+0000: 01
+
+#  [2B] base::write@3 { (std::u8)48 }
+0001: 03
+0002: 48
+
+#  [2B] base::write@3 { (std::u8)65 }
+0003: 03
+0004: 65
+
+#  [2B] base::write@3 { (std::u8)6C }
+0005: 03
+0006: 6C
+
+#  [2B] base::write@3 { (std::u8)6C }
+0007: 03
+0008: 6C
+
+#  [2B] base::write@3 { (std::u8)6F }
+0009: 03
+000A: 6F
+
+#  [2B] base::write@3 { (std::u8)5F }
+000B: 03
+000C: 5F
+
+#  [2B] base::write@3 { (std::u8)57 }
+000D: 03
+000E: 57
+
+#  [2B] base::write@3 { (std::u8)6F }
+000F: 03
+0010: 6F
+
+#  [2B] base::write@3 { (std::u8)72 }
+0011: 03
+0012: 72
+
+#  [2B] base::write@3 { (std::u8)6C }
+0013: 03
+0014: 6C
+
+#  [2B] base::write@3 { (std::u8)64 }
+0015: 03
+0016: 64
+
+#  [2B] base::write@3 { (std::u8)21 }
+0017: 03
+0018: 21
+
+#  [2B] base::exit@0 { (std::u8)00 }
+0019: 00
+001A: 00

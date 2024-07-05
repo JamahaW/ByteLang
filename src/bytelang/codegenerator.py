@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import struct
 from dataclasses import dataclass
 from typing import Callable
 from typing import Iterable
@@ -7,7 +8,7 @@ from typing import Optional
 
 from bytelang.content import Environment
 from bytelang.content import EnvironmentInstruction
-from bytelang.content import InstructionArgument
+from bytelang.content import EnvironmentInstructionArgument
 from bytelang.content import PrimitiveType
 from bytelang.content import PrimitiveWriteType
 from bytelang.handlers import BasicErrorHandler
@@ -76,8 +77,8 @@ class Variable:
     value: bytes
     """Значение"""
 
-    def write(self, type_index: PrimitiveType) -> bytes:
-        return type_index.write(self.primitive.index) + self.value
+    def write(self) -> bytes:
+        return self.value
 
     def __repr__(self) -> str:
         return f"{self.primitive!s} {self.identifier}@{self.address} = {ReprTool.prettyBytes(self.value)}"
@@ -172,11 +173,20 @@ class CodeGenerator:
         except Exception as e:
             self.__err.writeStatement(statement, f"Не удалось выполнить преобразование: {e}")
 
-    def __writeArgumentFromInstructionArg(self, statement: Statement, i: int, u_arg: UniversalArgument, i_arg: InstructionArgument) -> Optional[bytes]:
-        if i_arg.is_pointer and u_arg.identifier not in self.__variables:
-            self.__err.writeStatement(statement, f"Аргумент ({i}) Обращение по указателю ({i_arg}) с помощью сырого значения недопустимо")
+    def __writeArgumentFromInstructionArg(self, statement: Statement, i: int, u_arg: UniversalArgument, i_arg: EnvironmentInstructionArgument) -> Optional[bytes]:
+        if i_arg.pointing_type:
+            if (var := self.__variables.get(u_arg.identifier)) is None:
+                self.__err.writeStatement(statement, f"Аргумент ({i}) Обращение по указателю ({i_arg}) с помощью сырого значения недопустимо")
+                return
 
-        return self.__writeArgumentFromPrimitive(statement, u_arg, i_arg.primitive)
+            if var.primitive.size < i_arg.pointing_type.size:
+                self.__err.writeStatement(
+                    statement,
+                    f"Аргумент ({i}): Размер переменной {var} меньше размера указателя примитивного типа аргумента {i_arg}. Передача значения будет с ошибками"
+                )
+                return
+
+        return self.__writeArgumentFromPrimitive(statement, u_arg, i_arg.primitive_type)
 
     def __directiveSetEnvironment(self, statement: Statement) -> None:
         if self.__env is not None:
@@ -227,7 +237,7 @@ class CodeGenerator:
             value=arg_value
         )
 
-        self.__variable_offset += primitive.size + self.__env.profile.pointer_heap.size
+        self.__variable_offset += primitive.size
 
     def __processDirective(self, statement: Statement) -> None:
         if (directive := self.__DIRECTIVES.get(statement.head)) is None:
@@ -330,10 +340,17 @@ class ByteCodeGenerator:
         ret = bytearray()
         profile = data.environment.profile
 
-        ret.extend(profile.pointer_heap.write(data.start_address))
+        try:
+            program_start_data = profile.pointer_heap.write(data.start_address)
+
+        except struct.error as e:
+            self.__err.write(f"Область Heap вне допустимого размера: {e}")
+            return
+
+        ret.extend(program_start_data)
 
         for v in data.variables:
-            ret.extend(v.write(profile.type_index))
+            ret.extend(v.value)
 
         for ins in instructions:
             ret.extend(ins.write(profile.instruction_index))

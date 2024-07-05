@@ -53,8 +53,6 @@ class PrimitiveType(Content):
         8: "d"
     }
 
-    index: int
-    """Индекс примитивного типа"""
     size: int
     """Размер примитивного типа"""
     write_type: PrimitiveWriteType
@@ -66,7 +64,7 @@ class PrimitiveType(Content):
         return self.packer.pack(v)
 
     def __repr__(self) -> str:
-        return f"[{self.write_type} {self.size * 8}-bit] {self.__str__()}@{self.index}"
+        return f"[{self.write_type} {self.size * 8}-bit] {self.__str__()}"
 
     def __str__(self) -> str:
         return f"{self.parent}::{self.name}"
@@ -84,12 +82,10 @@ class Profile(Content):
     """Тип указателя кучи (Определяет максимально возможный адрес переменной"""
     instruction_index: PrimitiveType
     """Тип индекса инструкции (Определяет максимальное кол-во инструкций в профиле"""
-    type_index: PrimitiveType
-    """Индекс типа переменной"""
 
 
 @dataclass(frozen=True, kw_only=True)
-class InstructionArgument:
+class PackageInstructionArgument:
     """Аргумент инструкции"""
 
     POINTER_CHAR: Final[ClassVar[str]] = "*"
@@ -102,19 +98,19 @@ class InstructionArgument:
     def __repr__(self) -> str:
         return f"{self.primitive.__str__()}{self.POINTER_CHAR * self.is_pointer}"
 
-    def transform(self, profile: Profile) -> InstructionArgument:
-        """Получить аргумент с актуальным примитивным типом на основе профиля."""
+    def transform(self, profile: Profile) -> EnvironmentInstructionArgument:
+        """Получить аргумент инструкции окружения с актуальным примитивным типом значения на основе профиля."""
         if not self.is_pointer:
-            return self
+            return EnvironmentInstructionArgument(primitive_type=self.primitive, pointing_type=None)
 
-        return InstructionArgument(primitive=profile.pointer_heap, is_pointer=self.is_pointer)
+        return EnvironmentInstructionArgument(primitive_type=profile.pointer_heap, pointing_type=self.primitive)
 
 
 @dataclass(frozen=True, kw_only=True)
 class PackageInstruction(Content):
     """Базовые сведения об инструкции"""
 
-    arguments: tuple[InstructionArgument, ...]
+    arguments: tuple[PackageInstructionArgument, ...]
     """Аргументы базовой инструкции"""
 
     def __repr__(self) -> str:
@@ -123,7 +119,7 @@ class PackageInstruction(Content):
     def transform(self, index: int, profile: Profile) -> EnvironmentInstruction:
         """Создать инструкцию окружения на основе базовой и профиля"""
         args = tuple(arg.transform(profile) for arg in self.arguments)
-        size = profile.instruction_index.size + sum(arg.primitive.size for arg in args)
+        size = profile.instruction_index.size + sum(arg.primitive_type.size for arg in args)
         return EnvironmentInstruction(
             parent=profile.name,
             name=self.name,
@@ -135,6 +131,22 @@ class PackageInstruction(Content):
 
 
 @dataclass(frozen=True, kw_only=True)
+class EnvironmentInstructionArgument:
+    """Аргумент инструкции окружения"""
+
+    primitive_type: PrimitiveType
+    """Подставляемое значение"""
+    pointing_type: Optional[PrimitiveType]
+    """На какой тип является указателем"""
+
+    def __repr__(self) -> str:
+        if self.pointing_type is None:
+            return self.primitive_type.__str__()
+
+        return f"{self.primitive_type.__str__()}{PackageInstructionArgument.POINTER_CHAR}({self.pointing_type.__str__()})"
+
+
+@dataclass(frozen=True, kw_only=True)
 class EnvironmentInstruction(Content):
     """Инструкция окружения"""
 
@@ -142,7 +154,7 @@ class EnvironmentInstruction(Content):
     """Индекс этой инструкции"""
     package: str
     """Пакет этой команды"""
-    arguments: tuple[InstructionArgument, ...]
+    arguments: tuple[EnvironmentInstructionArgument, ...]
     """Аргументы окружения. Если тип был указателем, примитивный тип стал соответствовать типу указателя профиля окружения"""
     size: int
     """Размер инструкции в байтах"""

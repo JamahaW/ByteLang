@@ -1,0 +1,16 @@
+.env test_env
+
+write 'H'
+write 'e'
+write 'l'
+write 'l'
+write 'o'
+write '_'
+write 'W'
+write 'o'
+write 'r'
+write 'l'
+write 'd'
+write '!'
+
+exit 0

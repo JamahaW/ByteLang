@@ -16,7 +16,7 @@ from typing import TypeVar
 
 from bytelang.content import Environment
 from bytelang.content import EnvironmentInstruction
-from bytelang.content import InstructionArgument
+from bytelang.content import PackageInstructionArgument
 from bytelang.content import Package
 from bytelang.content import PackageInstruction
 from bytelang.content import PrimitiveType
@@ -104,7 +104,6 @@ class PrimitiveTypeRegistry(JSONFileRegistry[_PrimitiveRaw, PrimitiveType]):
 
     def __init__(self):
         super().__init__()
-        self.__next_index: int = 0
         self.__primitives_by_size = dict[tuple[int, PrimitiveWriteType], PrimitiveType]()
 
     def getBySize(self, size: int, write_type: PrimitiveWriteType = PrimitiveWriteType.unsigned) -> PrimitiveType:
@@ -128,13 +127,10 @@ class PrimitiveTypeRegistry(JSONFileRegistry[_PrimitiveRaw, PrimitiveType]):
         ret = self.__primitives_by_size[size, write_type] = PrimitiveType(
             name=name,
             parent=self._filepath.stem,
-            index=self.__next_index,
             size=size,
             write_type=write_type,
             packer=Struct(fmt)
         )
-
-        self.__next_index += 1
 
         return ret
 
@@ -197,7 +193,6 @@ class ProfileRegistry(CatalogRegistry[Profile]):
             pointer_program=getType("ptr_prog"),
             pointer_heap=getType("ptr_heap"),
             instruction_index=getType("ptr_inst"),
-            type_index=getType("ptr_type")
         )
 
 
@@ -229,14 +224,14 @@ class PackageParser(Parser[PackageInstruction]):
             )
         )
 
-    def __parseArgument(self, package_name: str, name: str, index: int, arg_lexeme: str) -> InstructionArgument:
-        is_pointer = arg_lexeme[-1] == InstructionArgument.POINTER_CHAR
-        arg_lexeme = arg_lexeme.rstrip(InstructionArgument.POINTER_CHAR)
+    def __parseArgument(self, package_name: str, name: str, index: int, arg_lexeme: str) -> PackageInstructionArgument:
+        is_pointer = arg_lexeme[-1] == PackageInstructionArgument.POINTER_CHAR
+        arg_lexeme = arg_lexeme.rstrip(PackageInstructionArgument.POINTER_CHAR)
 
         if (primitive := self.__primitive_type_registry.get(arg_lexeme)) is None:
             raise ValueError(f"Unknown primitive '{arg_lexeme}' at {index} in {package_name}::{name}")
 
-        return InstructionArgument(primitive=primitive, is_pointer=is_pointer)
+        return PackageInstructionArgument(primitive=primitive, is_pointer=is_pointer)
 
 
 class PackageRegistry(CatalogRegistry[Package]):

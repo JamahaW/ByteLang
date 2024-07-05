@@ -4,6 +4,7 @@ from os import PathLike
 from typing import Optional
 
 from bytelang.handlers import ErrorHandler
+from bytelang.interpreter import Interpreter
 from bytelang.processors import CompileResult
 from bytelang.processors import Compiler
 from bytelang.registries import EnvironmentsRegistry
@@ -15,9 +16,9 @@ from bytelang.registries import ProfileRegistry
 class ByteLang:
     """API byteLang"""
 
+    # TODO generic интерпретатор
     # TODO декомпиляция
     # TODO Генератор кода виртуальной машины на основе окружения
-    # TODO generic интерпретатор
     # TODO REPL режим
 
     def __init__(self) -> None:
@@ -36,6 +37,9 @@ class ByteLang:
     def decompile(self, env: str, bytecode_filepath: PathLike | str, source_filepath: PathLike | str) -> None:
         """Декомпилировать байткод с данной средой ВМ и сгенерировать исходный код"""
         pass
+
+    def getInterpreter(self, env: str, bytecode_filepath: PathLike | str) -> Interpreter:
+        return Interpreter(self.__environment_registry.get(env), bytecode_filepath, self.__primitive_type_registry)
 
     def setPrimitivesFile(self, filepath: PathLike | str) -> None:
         """Указать путь к файлу настройки примитивных типов"""
