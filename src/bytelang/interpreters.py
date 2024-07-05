@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from os import PathLike
 from typing import Callable
 from typing import Optional
@@ -13,18 +12,8 @@ from bytelang.registries import PrimitivesRegistry
 from bytelang.tools import FileTool
 
 
-@dataclass(frozen=True)
-class InterpreterInstruction:
-    """Инструкция интерпретатора"""
-
-    debug_name: str
-    """Имя для отладки"""
-    handler: Callable[[], None]
-    """Обработчик"""
-
-
 class Interpreter:
-    def __init__(self, env: Environment, instructions: tuple[InterpreterInstruction, ...]) -> None:
+    def __init__(self, env: Environment, instructions: tuple[Callable[[], None], ...]) -> None:
         self.__instructions = instructions
 
         self.__primitive_instruction_index = env.profile.instruction_index
@@ -75,14 +64,14 @@ class Interpreter:
         self.__program_pointer = self.ipReadHeapPointer()
 
         while self.__running:
-            self.__instructions[self.ipReadInstructionIndex()].handler()
+            self.__instructions[self.ipReadInstructionIndex()].__call__()
 
         return self.__exit_code
 
 
 class STDInterpreter(Interpreter):
 
-    def __init__(self, env: Environment, primitives: PrimitivesRegistry, instructions: tuple[InterpreterInstruction, ...]):
+    def __init__(self, env: Environment, primitives: PrimitivesRegistry, instructions: tuple[Callable[[], None], ...]):
         super().__init__(env, instructions)
         self.i8 = primitives.get("i8")
         self.u8 = primitives.get("u8")
@@ -100,15 +89,15 @@ class TestInterpreter(STDInterpreter):
 
     def __init__(self, env: Environment, primitives: PrimitivesRegistry):
         super().__init__(env, primitives, (
-            InterpreterInstruction("exit", self.__ins_exit),
-            InterpreterInstruction("print", self.__ins_print),
-            InterpreterInstruction("print8", self.__ins_print8),
-            InterpreterInstruction("inc", self.__ins_inc),
-            InterpreterInstruction("write", self.__ins_write),
-            InterpreterInstruction("push32", self.__ins__push32),
-            InterpreterInstruction("pop32", self.__ins__pop32),
-            InterpreterInstruction("pop16", self.__ins__pop16),
-            InterpreterInstruction("pop8", self.__ins__pop8),
+            self.__ins_exit,
+            self.__ins_print,
+            self.__ins_print8,
+            self.__ins_inc,
+            self.__ins_write,
+            self.__ins__push32,
+            self.__ins__pop32,
+            self.__ins__pop16,
+            self.__ins__pop8,
         ))
 
     def __ins_exit(self) -> None:
