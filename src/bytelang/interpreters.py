@@ -25,7 +25,7 @@ class Interpreter:
         self.f32 = primitives.get("f32")
         self.f64 = primitives.get("f64")
 
-        self.__instructions = instructions
+        self.__instructions: tuple[Callable[[Interpreter], None], ...] = instructions
 
         self.__primitive_instruction_index = env.profile.instruction_index
         self.__primitive_heap_pointer = env.profile.pointer_heap

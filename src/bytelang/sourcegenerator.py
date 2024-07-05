@@ -13,6 +13,7 @@ from typing import Optional
 from bytelang.content import Environment
 from bytelang.content import EnvironmentInstruction
 from bytelang.content import EnvironmentInstructionArgument
+from bytelang.content import PrimitiveType
 from bytelang.interpreters import Interpreter
 from bytelang.registries import PrimitivesRegistry
 from bytelang.tools import ReprTool
@@ -31,6 +32,12 @@ class GenerationSettings:
     vm_method_ipReadPrimitive: str
     vm_method_ipReadHeapPointer: str
 
+    def strCall_ipReadPrimitive(self, primitive: PrimitiveType) -> str:
+        return f"{self.vm_instance}.{self.vm_method_ipReadPrimitive}({self.vm_instance}.{primitive.name})"
+
+    def strCall_ipReadHeapPointer(self) -> str:
+        return f"{self.vm_instance}.{self.vm_method_ipReadHeapPointer}()"
+
 
 class InstructionSourceGenerator(ABC):
 
@@ -41,18 +48,10 @@ class InstructionSourceGenerator(ABC):
                 return PythonInstructionSourceGenerator()
 
             case _:
-                raise ValueError(f"Unknown lang option: {lang}")
+                raise ValueError(lang)
 
-    @staticmethod
-    def getArgumentValidName(arg: EnvironmentInstructionArgument) -> str:
-        if arg.pointing_type is None:
-            return f"{arg.primitive_type.name}"
-        return f"{arg.pointing_type.name}_ptr"
-
-    def getInstructionFuncName(self, i: EnvironmentInstruction) -> str:
-        args = "__".join(self.getArgumentValidName(a) for a in i.arguments)
-        ret = f"__{i.parent}_{i.package}_{i.name}__{args}"
-        self.instruction_names.append(ret)
+    def _processInstructionName(self, instruction: EnvironmentInstruction) -> str:
+        self.instruction_names.append(ret := instruction.reprShakeCase())
         return ret
 
     def __init__(self):
@@ -61,39 +60,76 @@ class InstructionSourceGenerator(ABC):
 
     def run(self, env: Environment, primitives: PrimitivesRegistry, output_folder: Path) -> Path:
         self.primitives = primitives
-
-        output_filepath = output_folder / f"{env.name}.{self.getFileExtension()}"
+        output_filepath = output_folder / f"{env.name}.{self._getSourceExtension()}"
 
         with open(output_filepath, "w") as f:
-            f.write(self.getFileHeadedLines(env))
+            f.write(self._getFileHeadedLines(env))
 
-            for i in env.instructions.values():
-                f.write(self.process(i))
+            for instruction in env.instructions.values():
+                f.write(self._process(instruction))
 
-            f.write(f"INSTRUCTIONS = {ReprTool.iter(self.instruction_names)}\n")
+            f.write(self._getInstructionCollectionDeclare())
 
         return output_filepath
 
     @abstractmethod
-    def process(self, instruction: EnvironmentInstruction) -> str:
+    def _process(self, instruction: EnvironmentInstruction) -> str:
         """Обработать инструкцию и вывести её source код"""
 
     @abstractmethod
-    def getFileExtension(self) -> str:
-        """Получить расширение файла исходного кода"""
+    def _getSourceExtension(self) -> str:
+        """Расширение файла исходного кода"""
 
     @abstractmethod
-    def getFileHeadedLines(self, env: Environment) -> str:
+    def _getFileHeadedLines(self, env: Environment) -> str:
         """Текст начала файла"""
 
+    @abstractmethod
+    def _getInstructionCollectionDeclare(self) -> str:
+        """Сформировать выражение объявления коллекции инструкций"""
 
-class PythonInstructionSourceGenerator(InstructionSourceGenerator):
 
-    def getFileHeadedLines(self, env: Environment) -> str:
+@dataclass(frozen=True)
+class PythonSourceFunctionArgument:
+    name: str
+    annotation: Optional[str] = None
+
+    def __repr__(self) -> str:
+        if self.annotation is None:
+            return self.name
+        return f"{self.name}: {self.annotation}"
+
+
+class PythonSourceGenerator:
+    @staticmethod
+    def intendLine(__s: str) -> str:
+        return f"    {__s}\n"
+
+    @staticmethod
+    def docString(__s: str) -> str:
+        return f'"""{__s}"""\n'
+
+    @staticmethod
+    def importClass(__cls: type) -> str:
+        return f"from {__cls.__module__.__str__()} import {__cls.__name__}\n"
+
+    @classmethod
+    def pythonFunc(cls, name: str, args: Iterable[PythonSourceFunctionArgument], lines: Iterable[str], /, *, returns: str = None, doc_string: str = None) -> str:
+        declare = f"def {name}{ReprTool.iter(args)} -> {returns}:\n"
+        doc_string = '' if doc_string is None else cls.intendLine(cls.docString(doc_string))
+        return f"{declare}{doc_string}{''.join(map(cls.intendLine, lines))}\n\n"
+
+
+class PythonInstructionSourceGenerator(InstructionSourceGenerator, PythonSourceGenerator):
+
+    def _getInstructionCollectionDeclare(self) -> str:
+        return f"INSTRUCTIONS = {ReprTool.iter(self.instruction_names)}\n"
+
+    def _getFileHeadedLines(self, env: Environment) -> str:
         enf_info = f"env: '{env.name}' from {env.parent!r}"
-        return f"{self.docStr(enf_info)}\nfrom {Interpreter.__module__.__str__()} import {Interpreter.__name__}\n\n\n"
+        return f"{self.docString(enf_info)}{self.importClass(Interpreter)}\n\n"
 
-    def getFileExtension(self) -> str:
+    def _getSourceExtension(self) -> str:
         return "py"
 
     def __init__(self):
@@ -105,38 +141,19 @@ class PythonInstructionSourceGenerator(InstructionSourceGenerator):
             vm_method_ipReadHeapPointer="ipReadHeapPointer"
         )
 
-    def processArgStatement(self, i: int, arg: EnvironmentInstructionArgument) -> str:
-        if arg.pointing_type is None:
-            return f"const_{arg.primitive_type.name}_{i} = {self.gs.vm_instance}.{self.gs.vm_method_ipReadPrimitive}({self.gs.vm_instance}.{arg.primitive_type.name})"
-        else:
-            return f"var_{arg.pointing_type.name}_{i} = {self.gs.vm_instance}.{self.gs.vm_method_ipReadHeapPointer}()"
+    def __processArgStatement(self, i: int, arg: EnvironmentInstructionArgument) -> str:
+        rv = self.gs.strCall_ipReadPrimitive(arg.primitive_type) if arg.pointing_type is None else self.gs.strCall_ipReadHeapPointer()
+        return f"{arg.reprShakeCase()}_{i} = {rv}"
 
-    def process(self, instruction: EnvironmentInstruction) -> str:
-        lines = (
-            self.processArgStatement(index, arg)
-            for index, arg in enumerate(instruction.arguments)
-        )
-
+    def _process(self, instruction: EnvironmentInstruction) -> str:
         return self.pythonFunc(
-            self.getInstructionFuncName(instruction),
-            ((self.gs.vm_instance, self.gs.vm_class),),
-            lines,
-            "None",
-            instruction.__repr__()
+            self._processInstructionName(instruction),
+            (
+                PythonSourceFunctionArgument(self.gs.vm_instance, self.gs.vm_class),
+            ),
+            (
+                self.__processArgStatement(index, arg)
+                for index, arg in enumerate(instruction.arguments)
+            ),
+            doc_string=instruction.__repr__()
         )
-
-    @staticmethod
-    def pyLine(__s: str) -> str:
-        return f"    {__s}\n"
-
-    @staticmethod
-    def docStr(__s: str) -> str:
-        return f'"""{__s}"""'
-
-    @classmethod
-    def pythonFunc(cls, name: str, args: Iterable[tuple[str, str]], lines: Iterable[str], ret_t: str, doc: str) -> str:
-        args_s = ", ".join(f"{__n}: {__t}" for __n, __t in args)
-        declare = f"def {name}({args_s}) -> {ret_t}:\n"
-        body = "".join(map(cls.pyLine, lines))
-        doc_line = cls.pyLine(cls.docStr(doc))
-        return f"{declare}{doc_line}{body}\n\n"

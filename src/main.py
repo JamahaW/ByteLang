@@ -44,6 +44,6 @@ def genSource(env: str):
     print(f"Исходный код окружения {env} был создан в {ret}")
 
 
-run("test_gen.bls", LogFlag.CONSTANTS | LogFlag.BYTECODE)
-# genSource("test_gen")
-execute(out_folder / "test_gen.bls.blc", "test_gen")
+# run("test_gen.bls", LogFlag.CONSTANTS | LogFlag.BYTECODE)
+genSource("test_env")
+# execute(out_folder / "test_gen.bls.blc", "test_gen")

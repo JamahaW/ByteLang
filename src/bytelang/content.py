@@ -134,6 +134,8 @@ class PackageInstruction(Content):
 class EnvironmentInstructionArgument:
     """Аргумент инструкции окружения"""
 
+    SHAKE_CASE_POINTER_SUFFIX: Final[ClassVar[str]] = "_ptr"
+
     primitive_type: PrimitiveType
     """Подставляемое значение"""
     pointing_type: Optional[PrimitiveType]
@@ -144,6 +146,11 @@ class EnvironmentInstructionArgument:
             return self.primitive_type.__str__()
 
         return f"{self.primitive_type.__str__()}{PackageInstructionArgument.POINTER_CHAR}({self.pointing_type.__str__()})"
+
+    def reprShakeCase(self) -> str:
+        if self.pointing_type is None:
+            return self.primitive_type.name
+        return self.pointing_type.name + self.SHAKE_CASE_POINTER_SUFFIX
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -161,6 +168,9 @@ class EnvironmentInstruction(Content):
 
     def generalInfo(self) -> str:
         return f"[{self.size}B] {self.package}::{self.name}@{self.index}"
+
+    def reprShakeCase(self) -> str:
+        return f"__{self.parent}_{self.package}_{self.name}__{'__'.join(a.reprShakeCase() for a in self.arguments)}"
 
     def __repr__(self) -> str:
         return f"{self.generalInfo()}{ReprTool.iter(self.arguments)}"
