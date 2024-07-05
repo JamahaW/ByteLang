@@ -1,16 +1,31 @@
 .env test_env
 
-write 'H'
-write 'e'
-write 'l'
-write 'l'
-write 'o'
-write '_'
-write 'W'
-write 'o'
-write 'r'
-write 'l'
-write 'd'
-write '!'
+.ptr u32 A 0
+.ptr u32 B 0
+.ptr u8 C 0
+
+push32 0x3930_D431
+pop32 A
+print A
+
+push32 0x3930_3930
+pop16 B
+print B
+
+pop16 B
+print B
+
+push32 0x3930_D431
+pop8 C
+print8 C
+
+pop8 C
+print8 C
+
+pop8 C
+print8 C
+
+pop8 C
+print8 C
 
 exit 0

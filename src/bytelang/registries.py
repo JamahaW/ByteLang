@@ -16,9 +16,9 @@ from typing import TypeVar
 
 from bytelang.content import Environment
 from bytelang.content import EnvironmentInstruction
-from bytelang.content import PackageInstructionArgument
 from bytelang.content import Package
 from bytelang.content import PackageInstruction
+from bytelang.content import PackageInstructionArgument
 from bytelang.content import PrimitiveType
 from bytelang.content import PrimitiveWriteType
 from bytelang.content import Profile
@@ -97,10 +97,8 @@ class JSONFileRegistry(Registry[str, _T], Generic[_R, _T]):
 _PrimitiveRaw = dict[str, int | str]
 
 
-class PrimitiveTypeRegistry(JSONFileRegistry[_PrimitiveRaw, PrimitiveType]):
-    """
-    Реестр примитивных типов
-    """
+class PrimitivesRegistry(JSONFileRegistry[_PrimitiveRaw, PrimitiveType]):
+    """Реестр примитивных типов"""
 
     def __init__(self):
         super().__init__()
@@ -176,7 +174,7 @@ class CatalogRegistry(Registry[str, _T]):
 
 class ProfileRegistry(CatalogRegistry[Profile]):
 
-    def __init__(self, file_ext: str, primitives: PrimitiveTypeRegistry):
+    def __init__(self, file_ext: str, primitives: PrimitivesRegistry):
         super().__init__(file_ext)
         self.__primitive_type_registry = primitives
 
@@ -199,7 +197,7 @@ class ProfileRegistry(CatalogRegistry[Profile]):
 class PackageParser(Parser[PackageInstruction]):
     """Парсер пакета инструкций"""
 
-    def __init__(self, primitives: PrimitiveTypeRegistry):
+    def __init__(self, primitives: PrimitivesRegistry):
         self.__used_names = set[str]()
         self.__package_name: Optional[str] = None
         self.__primitive_type_registry = primitives
@@ -236,7 +234,7 @@ class PackageParser(Parser[PackageInstruction]):
 
 class PackageRegistry(CatalogRegistry[Package]):
 
-    def __init__(self, file_ext: str, primitives: PrimitiveTypeRegistry):
+    def __init__(self, file_ext: str, primitives: PrimitivesRegistry):
         super().__init__(file_ext)
         self.__lexer = PackageParser(primitives)
 

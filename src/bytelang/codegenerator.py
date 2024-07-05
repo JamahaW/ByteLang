@@ -13,7 +13,7 @@ from bytelang.content import PrimitiveType
 from bytelang.content import PrimitiveWriteType
 from bytelang.handlers import BasicErrorHandler
 from bytelang.registries import EnvironmentsRegistry
-from bytelang.registries import PrimitiveTypeRegistry
+from bytelang.registries import PrimitivesRegistry
 from bytelang.statement import ArgumentValueType
 from bytelang.statement import Statement
 from bytelang.statement import StatementType
@@ -96,7 +96,7 @@ class ProgramData:
 class CodeGenerator:
     """Генератор промежуточного кода."""
 
-    def __init__(self, error_handler: BasicErrorHandler, environments: EnvironmentsRegistry, primitives: PrimitiveTypeRegistry) -> None:
+    def __init__(self, error_handler: BasicErrorHandler, environments: EnvironmentsRegistry, primitives: PrimitivesRegistry) -> None:
         self.__err = error_handler.getChild(self.__class__.__name__)
         self.__environments = environments
         self.__primitives = primitives

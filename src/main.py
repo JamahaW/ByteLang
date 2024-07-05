@@ -1,6 +1,8 @@
+from os import PathLike
 from pathlib import PurePath
 
 from bytelang import ByteLang
+from bytelang.interpreters import TestInterpreter
 from bytelang.processors import LogFlag
 from bytelang.tools import FileTool
 
@@ -12,13 +14,13 @@ out_folder = in_folder / 'out'
 
 # Структура ByteLang позволяет создавать несколько экземпляров исполнителей
 bl = ByteLang()
-bl.setPrimitivesFile(data_folder / "primitives/std.json")
-bl.setPackagesFolder(data_folder / "packages")
-bl.setProfilesFolder(data_folder / "profiles")
-bl.setEnvironmentsFolder(data_folder / "environments")
+bl.primitives_registry.setFile(data_folder / "primitives/std.json")
+bl.package_registry.setFolder(data_folder / "packages")
+bl.profile_registry.setFolder(data_folder / "profiles")
+bl.environment_registry.setFolder(data_folder / "environments")
 
 
-def run(filename: str, log_flags: LogFlag = LogFlag.ALL):
+def run(filename: str, log_flags: LogFlag = LogFlag.ALL) -> None:
     """Запустить компиляцию файла, вывести логи и ошибки"""
     out = out_folder / f"{filename}.blc"
     result = bl.compile(in_folder / filename, out)
@@ -27,8 +29,11 @@ def run(filename: str, log_flags: LogFlag = LogFlag.ALL):
     print(f"Компиляция завершена {status} {out}")
 
 
+def execute(bytecode_filepath: PathLike, env: str) -> None:
+    vm = TestInterpreter(bl.environment_registry.get(env), bl.primitives_registry)
+    ret = vm.run(bytecode_filepath)
+    print(f"Программа Bytelang завершена с кодом {ret}")
+
+
 run("test_vm.bls", LogFlag.CONSTANTS | LogFlag.BYTECODE | LogFlag.ENVIRONMENT_INSTRUCTIONS)
-
-
-vm = bl.getInterpreter("test_env", out_folder / "test_vm.bls.blc")
-vm.run()
+execute(out_folder / "test_vm.bls.blc", "test_env")

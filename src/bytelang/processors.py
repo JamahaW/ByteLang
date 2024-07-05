@@ -16,7 +16,7 @@ from bytelang.handlers import BasicErrorHandler
 from bytelang.parsers import Parser
 from bytelang.parsers import StatementParser
 from bytelang.registries import EnvironmentsRegistry
-from bytelang.registries import PrimitiveTypeRegistry
+from bytelang.registries import PrimitivesRegistry
 from bytelang.statement import Statement
 from bytelang.tools import FileTool
 from bytelang.tools import ReprTool
@@ -124,7 +124,7 @@ class CompileResult:
 class Compiler:
     """Компилятор ByteLang"""
 
-    def __init__(self, error_handler: BasicErrorHandler, primitives: PrimitiveTypeRegistry, environments: EnvironmentsRegistry):
+    def __init__(self, error_handler: BasicErrorHandler, primitives: PrimitivesRegistry, environments: EnvironmentsRegistry):
         self.__err = error_handler.getChild(self.__class__.__name__)
         self.__primitives = primitives
         self.__parser = StatementParser(self.__err)

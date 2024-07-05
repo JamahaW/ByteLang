@@ -1,64 +1,115 @@
 ------------------------------------------- <<< instructions : test_env >>> --------------------------------------------
   0: [2B] base::exit@0(std::u8)
-  1: [2B] base::print@1(std::u8*(std::i16))
-  2: [2B] base::inc@2(std::u8*(std::i16))
-  3: [2B] base::write@3(std::u8)
+  1: [2B] base::print@1(std::u8*(std::u32))
+  2: [2B] base::print8@2(std::u8*(std::u8))
+  3: [2B] base::inc@3(std::u8*(std::i16))
+  4: [2B] base::write@4(std::u8)
+  5: [5B] base::push32@5(std::u32)
+  6: [2B] base::pop32@6(std::u8*(std::u32))
+  7: [2B] base::pop16@7(std::u8*(std::u16))
+  8: [2B] base::pop8@8(std::u8*(std::u8))
 
 -------------------------------------------------- <<< constants >>> ---------------------------------------------------
-
+A       : { 1 | 1.0 }
+B       : { 5 | 5.0 }
+C       : { 9 | 9.0 }
 ---------------------- <<< bytecode view : A:\Projects\ByteLang\examples\out\test_vm.bls.blc >>> -----------------------
 
 #  program start address define
-0000: 01
+0000: 0A
 
-#  [2B] base::write@3 { (std::u8)48 }
-0001: 03
-0002: 48
+#  std::u32 A@1 = 0000_0000
+0001: 00
+0002: 00
+0003: 00
+0004: 00
 
-#  [2B] base::write@3 { (std::u8)65 }
-0003: 03
-0004: 65
+#  std::u32 B@5 = 0000_0000
+0005: 00
+0006: 00
+0007: 00
+0008: 00
 
-#  [2B] base::write@3 { (std::u8)6C }
-0005: 03
-0006: 6C
+#  std::u8 C@9 = 00
+0009: 00
 
-#  [2B] base::write@3 { (std::u8)6C }
-0007: 03
-0008: 6C
+#  [5B] base::push32@5 { (std::u32)31D4_3039 }
+000A: 05
+000B: 31
+000C: D4
+000D: 30
+000E: 39
 
-#  [2B] base::write@3 { (std::u8)6F }
-0009: 03
-000A: 6F
+#  [2B] base::pop32@6 { (std::u8*(std::u32))01 }
+000F: 06
+0010: 01
 
-#  [2B] base::write@3 { (std::u8)5F }
-000B: 03
-000C: 5F
+#  [2B] base::print@1 { (std::u8*(std::u32))01 }
+0011: 01
+0012: 01
 
-#  [2B] base::write@3 { (std::u8)57 }
-000D: 03
-000E: 57
+#  [5B] base::push32@5 { (std::u32)3039_3039 }
+0013: 05
+0014: 30
+0015: 39
+0016: 30
+0017: 39
 
-#  [2B] base::write@3 { (std::u8)6F }
-000F: 03
-0010: 6F
+#  [2B] base::pop16@7 { (std::u8*(std::u16))05 }
+0018: 07
+0019: 05
 
-#  [2B] base::write@3 { (std::u8)72 }
-0011: 03
-0012: 72
+#  [2B] base::print@1 { (std::u8*(std::u32))05 }
+001A: 01
+001B: 05
 
-#  [2B] base::write@3 { (std::u8)6C }
-0013: 03
-0014: 6C
+#  [2B] base::pop16@7 { (std::u8*(std::u16))05 }
+001C: 07
+001D: 05
 
-#  [2B] base::write@3 { (std::u8)64 }
-0015: 03
-0016: 64
+#  [2B] base::print@1 { (std::u8*(std::u32))05 }
+001E: 01
+001F: 05
 
-#  [2B] base::write@3 { (std::u8)21 }
-0017: 03
-0018: 21
+#  [5B] base::push32@5 { (std::u32)31D4_3039 }
+0020: 05
+0021: 31
+0022: D4
+0023: 30
+0024: 39
+
+#  [2B] base::pop8@8 { (std::u8*(std::u8))09 }
+0025: 08
+0026: 09
+
+#  [2B] base::print8@2 { (std::u8*(std::u8))09 }
+0027: 02
+0028: 09
+
+#  [2B] base::pop8@8 { (std::u8*(std::u8))09 }
+0029: 08
+002A: 09
+
+#  [2B] base::print8@2 { (std::u8*(std::u8))09 }
+002B: 02
+002C: 09
+
+#  [2B] base::pop8@8 { (std::u8*(std::u8))09 }
+002D: 08
+002E: 09
+
+#  [2B] base::print8@2 { (std::u8*(std::u8))09 }
+002F: 02
+0030: 09
+
+#  [2B] base::pop8@8 { (std::u8*(std::u8))09 }
+0031: 08
+0032: 09
+
+#  [2B] base::print8@2 { (std::u8*(std::u8))09 }
+0033: 02
+0034: 09
 
 #  [2B] base::exit@0 { (std::u8)00 }
-0019: 00
-001A: 00
+0035: 00
+0036: 00
