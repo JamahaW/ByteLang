@@ -1,0 +1,9 @@
+.env test_gen
+
+.ptr u32 A 123456789
+.ptr u32 B 1223334444
+
+print A
+print B
+
+exit 0

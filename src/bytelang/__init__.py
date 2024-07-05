@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from os import PathLike
+from pathlib import Path
 from typing import Optional
 
 from bytelang.content import Environment
@@ -12,13 +13,14 @@ from bytelang.registries import EnvironmentsRegistry
 from bytelang.registries import PackageRegistry
 from bytelang.registries import PrimitivesRegistry
 from bytelang.registries import ProfileRegistry
+from bytelang.sourcegenerator import InstructionSourceGenerator
+from bytelang.sourcegenerator import Language
 
 
 class ByteLang:
     """API byteLang"""
 
     # TODO декомпиляция
-    # TODO Генератор кода виртуальной машины на основе окружения
     # TODO REPL режим
 
     def __init__(self) -> None:
@@ -40,3 +42,10 @@ class ByteLang:
 
     def getErrorsLog(self) -> str:
         return self.__errors_handler.getLog()
+
+    def generateSource(self, env: str, output_folder: PathLike | str, lang: Language = Language.PYTHON) -> Path:
+        return InstructionSourceGenerator.create(lang).run(
+            self.environment_registry.get(env),
+            self.primitives_registry,
+            Path(output_folder)
+        )

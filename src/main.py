@@ -2,16 +2,17 @@ from os import PathLike
 from pathlib import PurePath
 
 from bytelang import ByteLang
-from bytelang.interpreters import INSTRUCTIONS
 from bytelang.interpreters import Interpreter
 from bytelang.processors import LogFlag
 from bytelang.tools import FileTool
+from generated.test_gen import INSTRUCTIONS
 
 # Рабочие папки
 base_folder = PurePath(r"A:\Projects\ByteLang")
 data_folder = base_folder / "data"
 in_folder = base_folder / "examples"
 out_folder = in_folder / 'out'
+py_source_generated_folder = base_folder / "src/generated"
 
 # Структура ByteLang позволяет создавать несколько экземпляров исполнителей
 bl = ByteLang()
@@ -31,10 +32,18 @@ def run(filename: str, log_flags: LogFlag = LogFlag.ALL) -> None:
 
 
 def execute(bytecode_filepath: PathLike, env: str) -> None:
+    """Исполнить байткод программу"""
     vm = Interpreter(bl.environment_registry.get(env), bl.primitives_registry, INSTRUCTIONS)
     ret = vm.run(bytecode_filepath)
     print(f"Программа Bytelang завершена с кодом {ret}")
 
 
-run("test_vm.bls", LogFlag.CONSTANTS | LogFlag.BYTECODE | LogFlag.ENVIRONMENT_INSTRUCTIONS)
-execute(out_folder / "test_vm.bls.blc", "test_env")
+def genSource(env: str):
+    """Сгенерировать исходный код инструкций"""
+    ret = bl.generateSource(env, py_source_generated_folder)
+    print(f"Исходный код окружения {env} был создан в {ret}")
+
+
+run("test_gen.bls", LogFlag.CONSTANTS | LogFlag.BYTECODE)
+# genSource("test_gen")
+execute(out_folder / "test_gen.bls.blc", "test_gen")
