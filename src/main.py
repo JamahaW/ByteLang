@@ -28,4 +28,4 @@ def run(filename: str, log_flags: LogFlag = LogFlag.ALL):
     print(f"Компиляция завершена {status} {out}")
 
 
-run("inc_test.bls", LogFlag.PROGRAM_VALUES | LogFlag.BYTECODE)
+run("var_test.bls", LogFlag.CONSTANTS | LogFlag.BYTECODE)

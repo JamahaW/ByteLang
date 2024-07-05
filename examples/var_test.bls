@@ -1,0 +1,6 @@
+.env test_env
+
+.ptr u8 a 0xff
+.ptr u16 b 0xffff
+.ptr u32 c 0xffff_ffff
+.ptr u64 d 0xffff_ffff_ffff_ffff

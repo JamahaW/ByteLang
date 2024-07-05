@@ -118,7 +118,7 @@ class CompileResult:
             if (ins := ins_by_addr.get(address)) is not None:
                 self.__writeComment(sb, ins)
 
-            sb.append(f"{address:04}: {byte:02X}")
+            sb.append(f"{address:04X}: {byte:02X}")
 
 
 class Compiler:

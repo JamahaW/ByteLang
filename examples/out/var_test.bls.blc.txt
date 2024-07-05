@@ -1,0 +1,36 @@
+-------------------------------------------------- <<< constants >>> ---------------------------------------------------
+a       : { 1 | 1.0 }
+b       : { 3 | 3.0 }
+c       : { 6 | 6.0 }
+d       : { 11 | 11.0 }
+---------------------- <<< bytecode view : A:\Projects\ByteLang\examples\out\var_test.bls.blc >>> ----------------------
+
+#  program start address define
+0000: 14
+
+#  std::u8 a@1 = FF
+0001: 00
+0002: FF
+
+#  std::u16 b@3 = FFFF
+0003: 02
+0004: FF
+0005: FF
+
+#  std::u32 c@6 = FFFF_FFFF
+0006: 04
+0007: FF
+0008: FF
+0009: FF
+000A: FF
+
+#  std::u64 d@11 = FFFF_FFFF_FFFF_FFFF
+000B: 06
+000C: FF
+000D: FF
+000E: FF
+000F: FF
+0010: FF
+0011: FF
+0012: FF
+0013: FF
