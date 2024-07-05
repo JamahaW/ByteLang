@@ -15,7 +15,7 @@ print B
 pop16 B
 print B
 
-push32 0x3930_D431
+push32 0x01_02_03_04
 pop8 C
 print8 C
 
