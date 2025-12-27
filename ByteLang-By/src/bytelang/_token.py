@@ -5,6 +5,7 @@ from enum import Enum
 from typing import Callable
 from typing import Final
 from typing import Optional
+from typing import Sequence
 from typing import final
 
 
@@ -20,7 +21,7 @@ class Token[T]:
             line: int,
             col: int,
     ) -> None:
-        self.type: Final = token_type
+        self.type = token_type
         self.value: Final = value
         self.line: Final = line
         self.col: Final = col
@@ -36,23 +37,23 @@ class TokenType(Enum):
     literal_string = (r'\"(?:[^\"\\]|\\.)*\"', Token[str], lambda s: s[1:-1])
     """ "string" """
 
-    literal_int_dec = (r'-?\d+', Token[int], int)
-    """ -123456 """
-
-    literal_int_char = (r'\'(?:[^\'\\]|\\.)\'', Token[int], lambda s: ord(s[1:-1]))
-    """ 'A' """
-
-    literal_int_hex = (r'0x[0-9a-fA-F]+', Token[int], lambda s: int(s, 16))
-    """ 0x67 """
-
-    literal_int_bin = (r'0b[01]+', Token[int], lambda s: int(s, 2))
-    """ 0b1010 """
+    literal_float_exp = (r'-?\d+(?:\.\d+)?[eE][-+]?\d+', Token[float], float)
+    """ -12e-34 """
 
     literal_float = (r'-?\d+\.\d+', Token[float], float)
     """ -123.456 """
 
-    literal_float_exp = (r'-?\d+(?:\.\d+)?[eE][-+]?\d+', Token[float], float)
-    """ -12e-34 """
+    literal_int_hex = (r'0x[0-9a-fA-F]+', Token[int], lambda s: int(s, 16))
+    """ 0x67 """
+
+    literal_int_dec = (r'-?\d+', Token[int], int)
+    """ -123456 """
+
+    literal_int_bin = (r'0b[01]+', Token[int], lambda s: int(s, 2))
+    """ 0b1010 """
+
+    literal_int_char = (r'\'(?:[^\'\\]|\\.)\'', Token[int], lambda s: ord(s[1:-1]))
+    """ 'A' """
 
     # --- Brackets ---
     bracket_open_round = (r'\(', Token[None], None)
@@ -104,6 +105,15 @@ class TokenType(Enum):
 
     newline = (r'\n', Token[None], None)
     """ newline """
+
+    keyword = (r"", None, None)
+
+    @classmethod
+    def types(cls) -> Sequence[TokenType]:
+        """Get available token types"""
+        ret = set(cls)
+        ret.remove(TokenType.keyword)
+        return tuple(ret)
 
     def __init__(self, regex: str, token_class: type[Token], value_from_lexeme: Optional[Callable[[str], object]]) -> None:
         self.pattern: Final[re.Pattern[str]] = re.compile(regex)

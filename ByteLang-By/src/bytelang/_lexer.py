@@ -13,16 +13,18 @@ class Lexer:
     def lex(self, source: str) -> list[Token]:
         """Convert source to tokens"""
 
-        pos = 0
+        position = 0
         line = 1
         col = 1
         tokens = list[Token]()
 
-        while pos < len(source):
+        while position < len(source):
             matched = False
 
             for token_type in TokenType:
-                if match := token_type.pattern.match(source, pos):
+                match = token_type.pattern.match(source, position)
+
+                if match is not None:
                     lexeme = match.group(0)
 
                     token = token_type.make(lexeme, line, col)
@@ -30,13 +32,12 @@ class Lexer:
                     if not token_type.skip():
                         # Check if identifier is a keyword
                         if token_type == TokenType.identifier and token.value in self._keywords:
-                            # Convert to keyword token (we need to handle this specially)
-                            # For now, just mark it as identifier but we'll handle in parser
-                            pass
+                            token.type = TokenType.keyword
+
                         tokens.append(token)
 
                     # Update position
-                    pos = match.end()
+                    position = match.end()
                     col += len(lexeme)
 
                     # Handle newlines
@@ -49,7 +50,7 @@ class Lexer:
 
             if not matched:
                 # Unexpected character
-                char = source[pos]
+                char = source[position]
                 raise SyntaxError(f"Unexpected character '{char}' at line {line}, col {col}")
 
         return tokens
@@ -60,7 +61,7 @@ if __name__ == "__main__":
     # Пример кода ByteLang
     __test_code = """
 //!math.bl
-pub fn add(ret: *i16, a: *i16, b: *i16) void = 0x67
+pub fn add(ret: *i16, a: *i16, b: *i16) void = 0x00
 
 //!sketch.bl
 import math
