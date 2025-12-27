@@ -1,66 +1,125 @@
-from dataclasses import dataclass
-from enum import Enum, auto
-from typing import Optional, final
+from __future__ import annotations
+
+import re
+from enum import Enum
+from typing import Callable
+from typing import Final
+from typing import Optional
+from typing import final
 
 
 @final
-@dataclass(frozen=True, kw_only=True)
-class Token:
+class Token[T]:
     """Token"""
 
-    class Type(Enum):
-        """Token Type"""
+    def __init__(
+            self,
+            *,
+            token_type: TokenType,
+            value: T,
+            line: int,
+            col: int,
+    ) -> None:
+        self.type: Final = token_type
+        self.value: Final = value
+        self.line: Final = line
+        self.col: Final = col
 
-        # Literal
-
-        literal_string = auto()
-        """ "string" """
-
-        literal_number_integer = auto()
-        """ -123456 """
-
-        literal_number_integer_character = auto()
-        """ 'A' """
-
-        literal_number_integer_hex = auto()
-        """ 0x67 """
-
-        literal_number_integer_bin = auto()
-        """ 0x1010 """
-
-        literal_number_real = auto()
-        """ -123.456 """
-
-        literal_number_real_exp = auto()
-        """ -12e-34 """
-
-        # brackets
-
-        bracket_open_round = auto()
-        """ ( """
-
-        bracket_close_round = auto()
-        """ ) """
-
-        bracket_open_square = auto()
-        """ [ """
-
-        bracket_close_square = auto()
-        """ ] """
-
-        bracket_open_figure = auto()
-        """ { """
-
-        bracket_close_figure = auto()
-        """ } """
-
-        # delimiters
+    def __repr__(self) -> str:
+        return f"Token({self.type.name}, {repr(self.value)}, line={self.line}, col={self.col})"
 
 
+class TokenType(Enum):
+    """Token Type"""
 
-    type: Type
+    # --- Literals ---
+    literal_string = (r'\"(?:[^\"\\]|\\.)*\"', Token[str], lambda s: s[1:-1])
+    """ "string" """
 
-    line: int
-    col: int
+    literal_int_dec = (r'-?\d+', Token[int], int)
+    """ -123456 """
 
-    lexeme: Optional[str] = None
+    literal_int_char = (r'\'(?:[^\'\\]|\\.)\'', Token[int], lambda s: ord(s[1:-1]))
+    """ 'A' """
+
+    literal_int_hex = (r'0x[0-9a-fA-F]+', Token[int], lambda s: int(s, 16))
+    """ 0x67 """
+
+    literal_int_bin = (r'0b[01]+', Token[int], lambda s: int(s, 2))
+    """ 0b1010 """
+
+    literal_float = (r'-?\d+\.\d+', Token[float], float)
+    """ -123.456 """
+
+    literal_float_exp = (r'-?\d+(?:\.\d+)?[eE][-+]?\d+', Token[float], float)
+    """ -12e-34 """
+
+    # --- Brackets ---
+    bracket_open_round = (r'\(', Token[None], None)
+    """ ( """
+
+    bracket_close_round = (r'\)', Token[None], None)
+    """ ) """
+
+    bracket_open_square = (r'\[', Token[None], None)
+    """ [ """
+
+    bracket_close_square = (r'\]', Token[None], None)
+    """ ] """
+
+    bracket_open_figure = (r'\{', Token[None], None)
+    """ { """
+
+    bracket_close_figure = (r'\}', Token[None], None)
+    """ } """
+
+    # --- Delimiters ---
+    delimiter_dot = (r'\.', Token[None], None)
+    """ . """
+
+    delimiter_comma = (r',', Token[None], None)
+    """ , """
+
+    delimiter_colon = (r':', Token[None], None)
+    """ : """
+
+    delimiter_assign = (r'=', Token[None], None)
+    """ = """
+
+    delimiter_semicolon = (r';', Token[None], None)
+    """ ; """
+
+    delimiter_star = (r'\*', Token[None], None)
+    """ * """
+
+    # --- Others ---
+    identifier = (r'[a-zA-Z_][a-zA-Z0-9_]*', Token[str], str)
+    """ identifier """
+
+    comment = (r'//.*', Token[str], str)
+    """ // comment """
+
+    whitespace = (r'[ \t]+', Token[None], None)
+    """ whitespace """
+
+    newline = (r'\n', Token[None], None)
+    """ newline """
+
+    def __init__(self, regex: str, token_class: type[Token], value_from_lexeme: Optional[Callable[[str], object]]) -> None:
+        self.pattern: Final[re.Pattern[str]] = re.compile(regex)
+        self._token_class: Final[type[Token]] = token_class
+        self._value_from_lexeme = value_from_lexeme
+
+    def make(self, lexeme: str, line: int, col: int) -> Token:
+        """Make token from source"""
+
+        return self._token_class(
+            token_type=self,
+            value=None if self._value_from_lexeme is None else self._value_from_lexeme(lexeme),
+            line=line,
+            col=col,
+        )
+
+    def skip(self) -> bool:
+        """Should this token be skipped?"""
+        return self in (TokenType.comment, TokenType.whitespace)
