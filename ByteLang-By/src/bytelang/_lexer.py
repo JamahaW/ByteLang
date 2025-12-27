@@ -1,94 +1,83 @@
+from dataclasses import dataclass
 from typing import Final
+from typing import Optional
+from typing import Sequence
+from typing import final
 
+from bytelang._token import SourcePosition
 from bytelang._token import Token
 from bytelang._token import TokenType
 
 
+@final
 class Lexer:
-    """Simple lexer for ByteLang"""
+    """Simple ByteLang Lexer"""
 
-    def __init__(self, keywords: set[str]) -> None:
-        self._keywords: Final = keywords
+    @final
+    @dataclass(frozen=True, kw_only=True)
+    class Error:
+        """Lexer error"""
 
-    def lex(self, source: str) -> list[Token]:
+        message: str
+        source_position: SourcePosition
+
+        def __str__(self):
+            return f"{self.source_position} - error: {self.message}"
+
+    def __init__(self, source_name: str, source_code: str) -> None:
+        self._source_code = source_code
+        self._source_position = SourcePosition(source_name, 0, 1, 1)
+        self._tokens: Final = list[Token]()
+        self._errors: Final = list[Lexer.Error]()
+
+    def tokens(self) -> Optional[Sequence[Token]]:
+        """Available tokens"""
+        if self._errors:
+            return None
+
+        return self._tokens
+
+    def errors(self) -> Sequence[Error]:
+        """Available errors"""
+        return self._errors
+
+    def process(self) -> None:
         """Convert source to tokens"""
-
-        position = 0
-        line = 1
-        col = 1
-        tokens = list[Token]()
-
-        while position < len(source):
+        while self._source_position.cursor < len(self._source_code):
             matched = False
 
             for token_type in TokenType:
-                match = token_type.pattern.match(source, position)
+                match = token_type.pattern.match(self._source_code, self._source_position.cursor)
 
-                if match is not None:
-                    lexeme = match.group(0)
+                if match is None:
+                    continue
 
-                    token = token_type.make(lexeme, line, col)
+                lexeme = match.group(0)
 
-                    if not token_type.skip():
-                        # Check if identifier is a keyword
-                        if token_type == TokenType.identifier and token.value in self._keywords:
-                            token.type = TokenType.keyword
+                if not token_type.skip():
+                    self._add_token(lexeme, token_type)
 
-                        tokens.append(token)
+                self._source_position.cursor = match.end()
+                self._source_position.col += len(lexeme)
 
-                    # Update position
-                    position = match.end()
-                    col += len(lexeme)
+                if token_type == TokenType.newline:
+                    self._source_position.new_line()
 
-                    # Handle newlines
-                    if token_type == TokenType.newline:
-                        line += 1
-                        col = 1
-
-                    matched = True
-                    break
+                matched = True
+                break
 
             if not matched:
-                # Unexpected character
-                char = source[position]
-                raise SyntaxError(f"Unexpected character '{char}' at line {line}, col {col}")
+                char = self._source_code[self._source_position.cursor]
+                self._add_error(f"Unexpected character {char}")
 
-        return tokens
+                self._source_position.cursor += 1
+                self._source_position.col += 1
 
+    def _add_token(self, lexeme: str, token_type: TokenType):
+        self._tokens.append(token_type.make(lexeme, self._source_position.clone()))
 
-# Пример использования
-if __name__ == "__main__":
-    # Пример кода ByteLang
-    __test_code = """
-//!math.bl
-pub fn add(ret: *i16, a: *i16, b: *i16) void = 0x00
-
-//!sketch.bl
-import math
-
-var x: i16 = 20
-var result: i16
-
-fn calculate(a: i16, b: i16) i16 {
-    var sum: i16
-    math.add(sum, a, b)
-    return sum
-}
-
-pub fn main() void {
-    result = calculate(100, x)
-}
-"""
-
-    # Ключевые слова языка
-    KEYWORDS = {
-        'import', 'pub', 'const', 'var', 'fn', 'struct',
-        'type', 'macro',
-    }
-
-    __lexer = Lexer(KEYWORDS)
-    __tokens = __lexer.lex(__test_code)
-
-    # Вывод токенов
-    for __token in __tokens:
-        print(f"{__token.type.name:20} {repr(__token.value):20} line={__token.line:3} col={__token.col:3}")
+    def _add_error(self, message: str):
+        self._errors.append(self.Error(
+            message=message,
+            source_position=self._source_position.clone()
+        ))

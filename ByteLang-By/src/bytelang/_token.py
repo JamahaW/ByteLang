@@ -1,12 +1,34 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from enum import Enum
 from typing import Callable
 from typing import Final
 from typing import Optional
-from typing import Sequence
 from typing import final
+
+
+@dataclass
+class SourcePosition:
+    """Source code position"""
+
+    name: str
+    cursor: int
+    line: int
+    col: int
+
+    def clone(self) -> SourcePosition:
+        """Make clone of position"""
+        return SourcePosition(self.name, self.cursor, self.line, self.col)
+
+    def new_line(self) -> None:
+        """Move cursor to new line"""
+        self.line += 1
+        self.col = 1
+
+    def __str__(self):
+        return f"in '{self.name}' at {self.line}:{self.col} ({self.cursor})"
 
 
 @final
@@ -18,16 +40,14 @@ class Token[T]:
             *,
             token_type: TokenType,
             value: T,
-            line: int,
-            col: int,
+            source_position: SourcePosition
     ) -> None:
         self.type = token_type
         self.value: Final = value
-        self.line: Final = line
-        self.col: Final = col
+        self.source_position: Final = source_position
 
     def __repr__(self) -> str:
-        return f"Token({self.type.name}, {repr(self.value)}, line={self.line}, col={self.col})"
+        return f"Token({self.type.name}, {repr(self.value)}, src={self.source_position})"
 
 
 class TokenType(Enum):
@@ -106,28 +126,18 @@ class TokenType(Enum):
     newline = (r'\n', Token[None], None)
     """ newline """
 
-    keyword = (r"", None, None)
-
-    @classmethod
-    def types(cls) -> Sequence[TokenType]:
-        """Get available token types"""
-        ret = set(cls)
-        ret.remove(TokenType.keyword)
-        return tuple(ret)
-
     def __init__(self, regex: str, token_class: type[Token], value_from_lexeme: Optional[Callable[[str], object]]) -> None:
         self.pattern: Final[re.Pattern[str]] = re.compile(regex)
         self._token_class: Final[type[Token]] = token_class
         self._value_from_lexeme = value_from_lexeme
 
-    def make(self, lexeme: str, line: int, col: int) -> Token:
+    def make(self, lexeme: str, source_position: SourcePosition) -> Token:
         """Make token from source"""
 
         return self._token_class(
             token_type=self,
             value=None if self._value_from_lexeme is None else self._value_from_lexeme(lexeme),
-            line=line,
-            col=col,
+            source_position=source_position,
         )
 
     def skip(self) -> bool:
