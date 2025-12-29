@@ -2,14 +2,14 @@
 // Регистровая математика
 
 // *ret = *a + *b
-pub fn add(ret: *i16, a: *i16, b: *16) = 0x67 
+pub fn add(ret: *i16, a: *i16, b: *i16) = 0x67
 
 
 //!mem.bl
 // Управление памятью
 
 // *target = value
-pub fn load(target: *i16, value: i16) = ...
+pub fn store(target: *i16, value: i16) = ...
 
 
 //!stack.bl
@@ -55,7 +55,7 @@ fn calc(
     // var return: i16
 
     // return = 5
-    mem.load(return, 5)
+    mem.store(return, 5)
 
     // return = return + x
     math.add(return, return, x)

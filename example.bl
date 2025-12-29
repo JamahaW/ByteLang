@@ -1,0 +1,213 @@
+// Показательный пример актуального видения языка ByteLang
+
+//!core.bl
+// Базовая функциональностью языка
+
+pub fn exit(code: u32) void = 0x00
+
+// push(func); exec(func)
+pub fn call(func_address: usize, stack_used: usize) void = 0x01
+
+// restore SP
+pub fn return() void = 0x02
+
+// *SP = *source
+pub fn push_var(source: *i32) void = 0x30
+
+// SP = source
+pub fn push_const(source: i32) void = 0x31
+
+// *dest = pop()
+pub fn pop_in(dest: *i32) void = 0x33
+
+// *target = value
+pub fn store(target: *i32, value: i32) void = 0x20
+
+// *target = *source
+pub fn copy(target: *i32, source: *i32) void = 0x21
+
+//!math.bl
+// Регистровая математика
+
+const T = i32
+
+// *ret = *a + *b
+pub fn add(ret: *T, a: *T, b: *T) void = 0x10
+
+// *ret = *a - *b
+pub fn sub(ret: *T, a: *T, b: *T) void = 0x11
+
+// *ret = *a * *b
+pub fn mul(ret: *T, a: *T, b: *T) void = 0x12
+
+// *ret = *a / *b
+pub fn div(ret: *T, a: *T, b: *T) void = 0x13
+
+// *ret = *ret + 1
+pub fn inc(ret: *T) void = 0x14
+
+// *ret = *ret - 1
+pub fn dec(ret: *T) void = 0x14
+
+//!sketch.bl
+
+// Импорт модуля math
+// Функционирует как создание приватной константы math с значением типа структуры, обладающей теми же полями, что и модуль math
+import math
+
+// Структура памяти:
+// сначала исполняемый код, затем данные
+// Запускатель main
+// core.call(main, n) // n - main stack
+
+// Глобальная переменная x
+var x: i32 = undefined
+
+// y - глобальная, сразу имеет значение 20
+var y: i32 = 20
+
+// Generic
+pub fn Point(T: type) type {
+    return struct {
+        // Каждая структура неявно имеет объявление:
+        // const Self = <тип этой структуры>
+
+        // Поля экземпляра
+        x: T,
+        y: T
+    }
+}
+
+pub const PointInt = Point(i32)
+
+// Метод - сумма двух точек
+fn sum(self: *PointInt, other: *PointInt) PointInt {
+    // неявная
+    // var ret: PointInt = undefined
+
+    math.add(&ret.x, &self.x, &other.x)
+    math.add(&ret.y, &self.y, &other.y)
+
+    // core.return()
+}
+
+// Затычка для пользовательского ввода
+// Возвращает на стек
+fn input() i32 = 0x69
+
+// Функция main
+// Соглашение:
+// main - точка входа.
+
+// Соглашение:
+// В конец тела функции вставляется вызов keyword `return`
+
+// return разворачивает вызов нативной функции завершения функции `fn core.return() void`
+
+// return <value> разворачивается в
+// ret = <value>
+// return
+
+// usize = u16
+
+var p1: PointInt = undefined
+
+var p2: PointInt = { 12, 34 }
+
+fn factorial(n: i32) i32 {
+    if (n == 1) {
+        return n
+    }
+
+    return n * factorial(n - 1)
+}
+
+fn factorial_core(n: i32) i32 {
+
+    if (n == 1) {
+        core.copy(ret, n)
+        core.return()
+    }
+
+    core.push_var(n)
+    math.dec(&n)
+    core.push_var(n)
+    core.call(factorial, 4)
+    core.pop_in(ret)
+    core.return()
+}
+
+// stack: sizeof(PointInt)
+fn main() void {
+    //
+
+    // 1. Runtime инициализация структуры
+    p1 = {
+        input(),
+        42
+    }
+
+    // переходит в такую запись:
+    // p1.x = input()
+    // p1.y = 42
+
+    // Инициализация со стека:
+    // p1.x = input()
+    // input() // [...], [input()]
+    // core.put_in(&p1.x) // [...],
+    // p1.y = 42
+    // core.push_const(42)
+    // core.put_in(&p1.y)
+
+    // 2. Переменная на стеке
+
+    var p: PointInt = {
+        avg(p1.x, p2.x),
+        avg(p1.y, p2.y),
+    }
+
+    // Разбирается на:
+    // var p: PointInt = undefined
+    // p.x = avg(p1.x, p2.x)
+    // p.y = avg(p1.y, p2.y)
+
+    // В core инструкциях:
+
+    var p: PointInt = undefined
+
+    //avg(p1.x, p2.x)
+    //вызов пользовательской функции разворачивается в:
+    //core.push_var(&p1.x) // a
+    //core.push_var(&p2.x) // b
+    //core.call(avg, 4)    // avg stack: 4 bytes
+    //core.put_in(&p.x)
+
+    //avg(p1.y, p2.y)
+    // вызов пользовательской функции
+    //core.put_in(&p.y)
+    //core.push_var(&p1.y) // a
+    //core.push_var(&p2.y) // b
+    //core.call(avg, 4)    // avg stack: 4 bytes
+    //core.put_in(&p.y)
+
+    // core.return()
+}
+
+// Пользовательская приватная функция с параметрами
+// foo(a, b) = (a + b) / 2
+fn avg(a: i32, b: i32) i32 {
+    // Функция имеет возвращаемый тип -> неявное объявление
+    // var ret: i32
+
+    // ret = a + b
+    math.add(&ret, &a, &b)
+
+    // a = 2
+    mem.store(&a, 2)
+
+    // ret = ret / a
+    math.div(&ret, &ret, &a)
+
+    // core.return()
+}
+
