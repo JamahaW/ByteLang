@@ -35,13 +35,7 @@ class SourcePosition:
 class Token[T]:
     """Token"""
 
-    def __init__(
-            self,
-            *,
-            token_type: TokenType,
-            value: T,
-            source_position: SourcePosition
-    ) -> None:
+    def __init__(self, *, token_type: TokenType, value: T, source_position: SourcePosition) -> None:
         self.type = token_type
         self.value: Final = value
         self.source_position: Final = source_position
@@ -53,7 +47,8 @@ class Token[T]:
 class TokenType(Enum):
     """Token Type"""
 
-    # --- Literals ---
+    # Literals
+
     literal_string = (r'\"(?:[^\"\\]|\\.)*\"', Token[str], lambda s: s[1:-1])
     """ "string" """
 
@@ -75,7 +70,8 @@ class TokenType(Enum):
     literal_int_char = (r'\'(?:[^\'\\]|\\.)\'', Token[int], lambda s: ord(s[1:-1]))
     """ 'A' """
 
-    # --- Brackets ---
+    # Brackets
+
     bracket_open_round = (r'\(', Token[None], None)
     """ ( """
 
@@ -94,9 +90,7 @@ class TokenType(Enum):
     bracket_close_figure = (r'\}', Token[None], None)
     """ } """
 
-    # --- Delimiters ---
-    delimiter_dot = (r'\.', Token[None], None)
-    """ . """
+    # Delimiters
 
     delimiter_comma = (r',', Token[None], None)
     """ , """
@@ -104,16 +98,22 @@ class TokenType(Enum):
     delimiter_colon = (r':', Token[None], None)
     """ : """
 
-    delimiter_assign = (r'=', Token[None], None)
+    # Operators
+
+    operator_dot = (r'\.', Token[None], None)
+    """ . """
+
+    operator_assign = (r'=', Token[None], None)
     """ = """
 
-    delimiter_semicolon = (r';', Token[None], None)
-    """ ; """
-
-    delimiter_star = (r'\*', Token[None], None)
+    operator_star = (r'\*', Token[None], None)
     """ * """
 
-    # --- Others ---
+    operator_address = (r'\&', Token[None], None)
+    """ & """
+
+    # Others
+
     identifier = (r'[a-zA-Z_][a-zA-Z0-9_]*', Token[str], str)
     """ identifier """
 
@@ -133,7 +133,6 @@ class TokenType(Enum):
 
     def make(self, lexeme: str, source_position: SourcePosition) -> Token:
         """Make token from source"""
-
         return self._token_class(
             token_type=self,
             value=None if self._value_from_lexeme is None else self._value_from_lexeme(lexeme),
@@ -142,4 +141,4 @@ class TokenType(Enum):
 
     def skip(self) -> bool:
         """Should this token be skipped?"""
-        return self in (TokenType.comment, TokenType.whitespace)
+        return self in {TokenType.comment, TokenType.whitespace}

@@ -1,534 +1,208 @@
+"""
+ByteLang Parser
+"""
 from __future__ import annotations
 
-from abc import ABC
-from abc import abstractmethod
+from _ast import Expression
 from dataclasses import dataclass
-from dataclasses import field
 from typing import Callable
+from typing import ClassVar
 from typing import Final
 from typing import Optional
-from typing import Self
 from typing import Sequence
 
+from bytelang._ast import Declaration
+from bytelang._ast import Field
+from bytelang._ast import FieldDeclaration
+from bytelang._ast import Identifier
+from bytelang._ast import Module
+from bytelang._ast import PublicDeclaration
+from bytelang._ast import Symbol
+from bytelang._ast import SymbolDeclaration
+from bytelang._ast import Type
+from bytelang._ast import Variable
+from bytelang._ast import VariableDeclaration
+from bytelang._stream import OutputStream
 from bytelang._token import Token
 from bytelang._token import TokenType
-
-
-@dataclass(frozen=True)
-class Node(ABC):
-    """ByteLang AST Node"""
-
-    token: Token = field(repr=False)
-
-    @classmethod
-    @abstractmethod
-    def parse(cls, parser: Parser) -> Optional[Self]:
-        """apply parser on node"""
-
-
-class ValueNode(Node):
-    """Value"""
-
-    @classmethod
-    def parse(cls, parser: Parser) -> Optional[Self]:
-        pass
-
-
-@dataclass(frozen=True)
-class LiteralValueNode[T: (None, int, float, str, tuple)](ValueNode):
-    value: T
-
-    @classmethod
-    def parse(cls, parser: Parser) -> Optional[Self]:
-        pass
-
-
-@dataclass(frozen=True)
-class IdentifierNode(ValueNode):
-    """Identifier"""
-
-    name: str
-
-    @classmethod
-    def parse(cls, parser: Parser) -> Optional[Self]:
-        token: Optional[Token[str]] = parser.consume(TokenType.identifier)
-
-        if token:
-            return cls(token, token.value)
-
-        return None
-
-
-@dataclass(frozen=True)
-class TypeNode(ValueNode):
-    """
-    Type
-    <type>
-    """
-
-    @classmethod
-    def parse(cls, parser: Parser) -> Optional[Self]:
-        pass
-
-
-@dataclass(frozen=True)
-class _PureTypeNode(TypeNode):
-    """
-    <id>
-    """
-
-    identifier: IdentifierNode
-
-    @classmethod
-    def parse(cls, parser: Parser) -> Optional[Self]:
-        _id = IdentifierNode.parse(parser)
-
-        if not _id:
-            return None
-
-        return cls(parser.peek(), _id)
-
-
-@dataclass(frozen=True)
-class _PointerTypeNode(TypeNode):
-    """
-    *<type>
-    """
-
-    type: TypeNode
-
-    @classmethod
-    def parse(cls, parser: Parser) -> Optional[Self]:
-        star = parser.consume(TokenType.delimiter_star)
-
-        if not star:
-            return None
-
-        _type = TypeNode.parse(parser)
-
-        if not _type:
-            return None
-
-        return cls(parser.peek(), _type)
-
-
-@dataclass(frozen=True)
-class _ArrayKindTypeNode(TypeNode):
-    """
-    [ ... ]<type>
-    """
-
-    type: TypeNode
-
-    @classmethod
-    def parse(cls, parser: Parser) -> Optional[Self]:
-        _open = parser.consume(TokenType.bracket_open_square)
-
-        if not _open:
-            return None
-
-        _next = parser.consume(TokenType.bracket_close_square)
-
-        if _next:
-            return _SliceTypeNode.parse(parser)
-
-        return _ArrayTypeNode.parse(parser)
-
-
-@dataclass(frozen=True)
-class _SliceTypeNode(_ArrayKindTypeNode):
-    """
-    []<type>
-    """
-
-    @classmethod
-    def parse(cls, parser: Parser) -> Optional[Self]:
-        _type = TypeNode.parse(parser)
-
-        if not _type:
-            return None
-
-        return cls(parser.peek(), _type)
-
-
-@dataclass(frozen=True)
-class _ArrayTypeNode(_ArrayKindTypeNode):
-    """
-    [ <value(literal(int))> ] <type>
-    """
-
-    @classmethod
-    def parse(cls, parser: Parser) -> Optional[Self]:
-        _len: Optional[LiteralValueNode[int]] = LiteralValueNode.parse(parser)
-
-        if not _len:
-            return None
-
-        _close = parser.consume(TokenType.bracket_close_square)
-
-        if not _close:
-            return None
-
-        _type = TypeNode.parse(parser)
-
-        if not _type:
-            return None
-
-        return cls(parser.peek(), _type)
-
-
-@dataclass(frozen=True)
-class FieldNode(Node):
-    """
-
-    <id> : <type>
-
-    """
-
-    identifier: IdentifierNode
-    type: TypeNode
-
-    @classmethod
-    def parse(cls, parser: Parser) -> Optional[Self]:
-        identifier = IdentifierNode.parse(parser)
-
-        if not identifier:
-            return None
-
-        token = parser.consume(TokenType.delimiter_colon)
-
-        if not token:
-            return None
-
-        _type = TypeNode.parse(parser)
-
-        if not _type:
-            return None
-
-        return cls(token, identifier, _type)
-
-
-class FunctionCallNode(Node):
-    """
-    Function call
-
-    <id> ( <value> , <value> , ... )
-    """
-
-    instruction: IdentifierNode
-    arguments: Sequence[ValueNode]
-
-    @classmethod
-    def parse(cls, parser: Parser) -> Optional[Self]:
-        pass
-
-
-class KeywordNode(Node, ABC):
-    """Bytelang Keyword node"""
-
-    @classmethod
-    @abstractmethod
-    def name(cls) -> str:
-        """name of keyword"""
-
-    @classmethod
-    def parse(cls, parser: Parser) -> Optional[Self]:
-        keyword_id: Optional[Token[str]] = parser.consume(TokenType.identifier)
-
-        if not keyword_id:
-            return None
-
-        keyword = cls.__keywords.get(keyword_id.value)
-
-        if not keyword:
-            parser.add_error(f"unknown keyword: '{keyword_id}'")
-            return None
-
-        return keyword.parse(parser)
-
-    @staticmethod
-    def _keywords() -> set[type[KeywordNode]]:
-        return {
-            ConstantDeclarationNode,
-            ImportNode,
-            VariableDeclarationNode,
-            FunctionDeclarationNode,
-            PublicNode,
-            ReturnNode,
-            StructNode,
-            UndefinedNode
-        }
-
-    __keywords = {
-        keyword.name(): keyword
-        for keyword in _keywords()
-    }
-
-
-@dataclass(frozen=True)
-class UndefinedNode(KeywordNode, LiteralValueNode[None]):
-    """undefined"""
-
-    @classmethod
-    def name(cls) -> str:
-        return "undefined"
-
-    @classmethod
-    def parse(cls, parser: Parser) -> Optional[Self]:
-        return cls(parser.peek(), None)
-
-
-@dataclass(frozen=True)
-class ConstantDeclarationNode(KeywordNode):
-    """
-    Declares Constant
-
-    const <id> = <value>
-    """
-
-    identifier: IdentifierNode
-    value: ValueNode
-
-    @classmethod
-    def name(cls) -> str:
-        return "const"
-
-    @classmethod
-    def parse(cls, parser: Parser) -> Optional[Self]:
-        identifier = IdentifierNode.parse(parser)
-        token = parser.consume(TokenType.delimiter_assign)
-        value = ValueNode.parse(parser)
-        return cls(token, identifier, value)
-
-
-@dataclass(frozen=True)
-class ImportNode(KeywordNode):
-    """
-    Imports module
-
-    import <id>
-    """
-
-    target: IdentifierNode
-
-    @classmethod
-    def name(cls) -> str:
-        return "import"
-
-    @classmethod
-    def parse(cls, parser: Parser) -> Optional[Self]:
-        target = IdentifierNode.parse(parser)
-
-        if not target:
-            return None
-
-        return cls(parser.peek(), target)
-
-
-@dataclass(frozen=True)
-class ReturnNode(KeywordNode):
-    """
-    Function return
-
-    f() -> void:
-        return
-
-    f() -> T:
-        return <value(T)>
-    """
-
-    result: ValueNode
-
-    @classmethod
-    def name(cls) -> str:
-        return "return"
-
-    @classmethod
-    def parse(cls, parser: Parser) -> Optional[Self]:
-        pass
-
-
-@dataclass(frozen=True)
-class VariableDeclarationNode(KeywordNode, ABC):
-    """
-    Declares Variable
-
-    var <field> = <value>
-    """
-
-    field: FieldNode
-    init: ValueNode
-
-    @classmethod
-    def name(cls) -> str:
-        return "var"
-
-    @classmethod
-    def parse(cls, parser: Parser) -> Optional[Self]:
-        pass
-
-
-@dataclass(frozen=True)
-class FunctionDeclarationNode(KeywordNode):
-    """
-    Function
-
-    fn <id> ( <field> , <field> , ... )
-    """
-
-    arguments: Sequence[FieldNode]
-
-    result_type: TypeNode
-
-    @classmethod
-    def name(cls) -> str:
-        return "fn"
-
-    @classmethod
-    def parse(cls, parser: Parser) -> Optional[Self]:
-        pass
-
-
-@dataclass(frozen=True)
-class _NativeFunctionKeywordDeclarationNode(FunctionDeclarationNode):
-    """
-    Native Function
-
-    fn <id> ( <field> , <field> , ... ) = <value(literal(int))>
-    """
-
-    bind: LiteralValueNode[int]
-
-    @classmethod
-    def parse(cls, parser: Parser) -> Optional[Self]:
-        pass
-
-
-@dataclass(frozen=True)
-class _UserFunctionKeywordDeclarationNode(FunctionDeclarationNode):
-    """
-    User Function
-
-    fn <id> ( <field> , <field> , ... ) {
-        <inst-call>
-
-        const ...
-    }
-    """
-
-    body: Sequence[FunctionCallNode]
-    constants: Sequence[ConstantDeclarationNode]
-
-    @classmethod
-    def parse(cls, parser: Parser) -> Optional[Self]:
-        pass
-
-
-@dataclass(frozen=True)
-class StructNode(KeywordNode, TypeNode):
-    """
-    Struct
-
-    struct {
-        <field>, <field>,
-        <field> ...
-
-        <keyword...>
-    }
-    """
-
-    fields: Sequence[FieldNode]
-    keywords: Sequence[KeywordNode]
-
-    @classmethod
-    def name(cls) -> str:
-        return "struct"
-
-
-@dataclass(frozen=True)
-class PublicNode(KeywordNode):
-    """
-    Static variable
-
-    pub <id> ...
-    """
-
-    keyword: KeywordNode
-
-    @classmethod
-    def name(cls) -> str:
-        return "pub"
-
-    @classmethod
-    def parse(cls, parser: Parser) -> Optional[Self]:
-        keyword = KeywordNode.parse(parser)
-
-        if not keyword:
-            return None
-
-        return cls(parser.peek(), keyword)
-
-
-@dataclass(frozen=True)
-class ModuleNode(Node):
-    """ByteLang Module"""
-
-    keywords: Sequence[KeywordNode]
-
-    @classmethod
-    def parse(cls, parser: Parser) -> ModuleNode:
-        pass
 
 
 class Parser:
     """ByteLang parser"""
 
+    # types
+
     @dataclass(frozen=True)
     class Error:
-        """ByteLang Parsing Error"""
-
+        """Parsing Error"""
         message: str
         token: Optional[Token]
 
+    # front-end
+
+    _keyword_public: ClassVar = "pub"
+    _keyword_variable: ClassVar = "var"
+    _keyword_symbol_define: ClassVar = "def"
+
     def __init__(self, tokens: Sequence[Token]) -> None:
-        self._tokens: Final = tokens
-        self._position = 0
+        self._tokens: Final = OutputStream(tokens)
         self._errors: Final = list[Parser.Error]()
 
     def errors(self) -> Sequence[Error]:
-        """Get available parsing errors"""
+        """Get possible errors"""
         return self._errors
 
-    def run(self) -> Optional[ModuleNode]:
-        """Parse and get AST"""
-        node = ModuleNode.parse(self)
+    def identifier(self) -> Optional[Identifier]:
+        """Parse identifier"""
+        token: Optional[Token[str]] = self._consume(TokenType.identifier)
 
-        if self._errors:
+        if token is None:
             return None
 
-        return node
+        return Identifier(main_token=token, id=token.value)
 
-    def peek(self) -> Optional[Token]:
-        """Посмотреть текущий токен"""
-        if self._position >= len(self._tokens):
+    def symbol(self) -> Optional[Symbol]:
+        """Parse symbol"""
+        token = self._consume_keyword(self._keyword_symbol_define)
+
+        if token is None:
             return None
 
-        return self._tokens[self._position]
+        identifier = self.identifier()
 
-    def advance(self) -> Optional[Token]:
-        """Перейти к следующему токену"""
-        if self._position >= len(self._tokens):
-            self._add_error("Unexpected end of file")
+        if identifier is None:
             return None
 
-        token = self._tokens[self._position]
-        self._position += 1
+        if self._consume(TokenType.operator_assign) is None:
+            return None
 
-        return token
+        expression = self.expression()
 
-    def consume(self, expected_type: TokenType) -> Optional[Token]:
-        """Съесть токен ожидаемого типа"""
-        token = self.peek()
+        if expression is None:
+            return None
+
+        return Symbol(token, identifier, expression)
+
+    def variable(self) -> Optional[Variable]:
+        """Parse variable"""
+        token = self._consume_keyword(self._keyword_variable)
+
+        if token is None:
+            return None
+
+        field = self.field()
+
+        if field is None:
+            return None
+
+        if self._consume(TokenType.operator_assign) is None:
+            return None
+
+        expression = self.expression()
+
+        if expression is None:
+            return None
+
+        return Variable(token, field, expression)
+
+    def field(self) -> Optional[Field]:
+        """Parse field"""
+        identifier = self.identifier()
+
+        if identifier is None:
+            return None
+
+        if self._consume(TokenType.delimiter_colon) is None:
+            return None
+
+        _type = self.type()
+
+        if _type is None:
+            return None
+
+        return Field(identifier.main_token, identifier, _type)
+
+    def public_declaration(self) -> Optional[PublicDeclaration]:
+        """parse public declaration"""
+        token = self._consume_keyword(self._keyword_public)
+
+        if Token is None:
+            return None
+
+        declaration = self.declaration()
+
+        if declaration is None:
+            return None
+
+        return PublicDeclaration(token, declaration)
+
+    def symbol_declaration(self) -> Optional[SymbolDeclaration]:
+        """parse symbol declaration"""
+        symbol = self.symbol()
+
+        if symbol is None:
+            return None
+
+        return SymbolDeclaration(symbol.main_token, symbol)
+
+    def variable_declaration(self) -> Optional[VariableDeclaration]:
+        """parse symbol declaration"""
+        variable = self.variable()
+
+        if variable is None:
+            return None
+
+        return VariableDeclaration(variable.main_token, variable)
+
+    def field_declaration(self) -> Optional[FieldDeclaration]:
+        """parse field declaration"""
+        field = self.field()
+
+        if field is None:
+            return None
+
+        return FieldDeclaration(field.main_token, field)
+
+    def declaration(self) -> Optional[Declaration]:
+        """parse declaration"""
+
+        token = self._consume(TokenType.identifier)
+
+        if token.value == self._keyword_public:
+            return self.public_declaration()
+
+        if token.value == self._keyword_variable:
+            return self.variable_declaration()
+
+        return self.field_declaration()
+
+    def module(self) -> Optional[Module]:
+        """Parse input tokens into Bytelang AST Module Node"""
+        raise NotImplementedError
+
+    def type(self) -> Optional[Type]:
+        """parse type"""
+        raise NotImplementedError
+
+    def expression(self) -> Optional[Expression]:
+        """Parse expression node"""
+        raise NotImplementedError
+
+    # back-end
+
+    def _add_error(self, message: str) -> None:
+        """Add error at last token"""
+        self._errors.append(self.Error(message, self._tokens.peek()))
+
+    # back-end: parsing process methods
+
+    def _match(self, expected_type: TokenType) -> Optional[Token]:
+        """
+        Checks peek token
+        :param expected_type:
+        :return:
+        """
+        token = self._tokens.peek()
 
         if token is None:
             self._add_error(f"Expected {expected_type}, got EOF")
@@ -538,44 +212,48 @@ class Parser:
             self._add_error(f"Expected {expected_type}, got {token.type}")
             return None
 
-        return self.advance()
+        return token
 
-    def match(self, token_type: TokenType) -> bool:
-        """Проверить совпадение без продвижения"""
-        token = self.peek()
-        return token is not None and token.type == token_type
+    def _consume(self, expected_type: TokenType) -> Optional[Token]:
+        """
+        Eat token of expected type or none and write error
+        :param expected_type:
+        :return: Token with expected type or None
+        """
+        token = self._tokens.next()
 
-    def parse_list[T](
+        if token is None:
+            self._add_error(f"Expected {expected_type}, got EOF")
+            return None
+
+        if token.type != expected_type:
+            self._add_error(f"Expected {expected_type}, got {token.type}")
+            return None
+
+        return token
+
+    def _consume_keyword(self, expected_identifier: str) -> Optional[Token]:
+        """
+        Eat identifier token with expected identifier value
+        :param expected_identifier:
+        :return: Token with Identifier type and expected value or none
+        """
+        token = self._consume(TokenType.identifier)
+
+        if token is None:
+            return None
+
+        if token.value != expected_identifier:
+            self._add_error(f"'{token.value}' not an expected keyword '{expected_identifier}'")
+            return None
+
+        return token
+
+    def _parse_list[T](
             self,
-            element_parser: Callable[[Parser], T],
+            element_parser: Callable[[], Optional[T]],
             delimiter: TokenType,
-            end_marker: TokenType,
+            terminator: TokenType,
+            ignore: Optional[TokenType]
     ) -> Sequence[T]:
-        """Парсинг списка элементов с разделителями"""
-        elements = list[T]()
-
-        if self.match(end_marker):
-            self.advance()
-            return elements
-
-        while True:
-            elements.append(element_parser(self))
-
-            if self.match(end_marker):
-                self.advance()
-                break
-
-            if not self.match(delimiter):
-                self._add_error(f"Expected {delimiter} or {end_marker}, got {self.peek().type}")
-                break
-
-            self.advance()
-
-            if self.match(end_marker):
-                self.advance()
-                break
-
-        return elements
-
-    def add_error(self, message: str) -> None:
-        self._errors.append(self.Error(message, self.peek()))
+        pass

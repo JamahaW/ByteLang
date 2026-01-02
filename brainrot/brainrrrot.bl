@@ -1,0 +1,5 @@
+def io = import("io.bl")
+
+def main = fn() void {
+    io.write("Hello World!")
+}
