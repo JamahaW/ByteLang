@@ -11,6 +11,15 @@ class OutputStream[T]:
     def __init__(self, items: Sequence[T]) -> None:
         self._items: Final = items
         self._position = 0
+        self._position_stack = list[int]()
+
+    def push_position(self) -> None:
+        """Push actual position in stack"""
+        self._position_stack.append(self._position)
+
+    def pop_position(self) -> None:
+        """Pop current position from stack"""
+        self._position = self._position_stack.pop()
 
     def peek(self) -> Optional[T]:
         """Get item on cursor if available"""

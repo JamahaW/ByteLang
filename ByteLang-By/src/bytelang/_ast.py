@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from dataclasses import field
 from typing import Optional
 from typing import Sequence
 
@@ -11,7 +12,7 @@ from bytelang._token import Token
 class Node:
     """ByteLang AST Node"""
 
-    main_token: Token
+    main_token: Token = field(repr=False)
 
 
 @dataclass(frozen=True)
@@ -140,9 +141,10 @@ class FunctionSignature(Node):
     """
     Function Signature
 
-    'fn' '(' <field> [',' <field>]* ')' <type>
+    '(' <field> [',' <field>]* ')' <type>
     """
     arguments: Sequence[Field]
+    return_type: Type
 
 
 @dataclass(frozen=True)
@@ -190,6 +192,16 @@ class AddressTake(Expression):
     '&' <name>
     """
     name: Name
+
+
+@dataclass(frozen=True)
+class Dereference(Expression):
+    """
+    Value of Address
+
+    '*' <name>
+    """
+    address: Expression
 
 
 @dataclass(frozen=True)
@@ -369,7 +381,7 @@ class FunctionType(Type):
     """
     Function itself
 
-    <function_signature_type> '{' [<statement> '\n']* '}'
+    'fn' <function_signature_type> '{' [<statement> '\n']* '}'
     """
 
     function_signature_type: FunctionSignatureType

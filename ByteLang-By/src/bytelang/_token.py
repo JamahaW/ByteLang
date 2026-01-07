@@ -52,20 +52,20 @@ class TokenType(Enum):
     literal_string = (r'\"(?:[^\"\\]|\\.)*\"', Token[str], lambda s: s[1:-1])
     """ "string" """
 
-    literal_float_exp = (r'-?\d+(?:\.\d+)?[eE][-+]?\d+', Token[float], float)
+    literal_real_exp = (r'-?\d+(?:\.\d+)?[eE][-+]?\d+', Token[float], float)
     """ -12e-34 """
 
-    literal_float = (r'-?\d+\.\d+', Token[float], float)
+    literal_real = (r'-?\d+\.\d+', Token[float], float)
     """ -123.456 """
 
     literal_int_hex = (r'0x[0-9a-fA-F]+', Token[int], lambda s: int(s, 16))
     """ 0x67 """
 
+    literal_int_bin = (r'0b[01]+', Token[int], lambda s: int(s[2:], 2))
+    """ 0b1010 """
+
     literal_int_dec = (r'-?\d+', Token[int], int)
     """ -123456 """
-
-    literal_int_bin = (r'0b[01]+', Token[int], lambda s: int(s, 2))
-    """ 0b1010 """
 
     literal_int_char = (r'\'(?:[^\'\\]|\\.)\'', Token[int], lambda s: ord(s[1:-1]))
     """ 'A' """
