@@ -429,6 +429,52 @@ pub var y: i32 = 20
 
         self._assert_no_errors(parser)
 
+    def test_struct_with_declarations(self):
+        """Тест парсинга структуры с разными объявлениями"""
+        source = """
+    def Point = struct {
+      x: i32
+      def bar = 1000
+      y: i32
+      def foo = fn() void {
+        return
+      }
+    }
+    """
+        parser = self._create_parser(source)
+        self.assertIsNotNone(parser)
+
+        module = parser.module()
+        self._assert_is_instance(module, Module, "module")
+
+        self.assertEqual(len(module.declarations), 1)
+        decl = module.declarations[0]
+        self._assert_is_instance(decl, SymbolDeclaration, "symbol declaration")
+
+        symbol = decl.symbol
+        self.assertEqual(symbol.identifier.id, "Point")
+
+        struct = symbol.expression
+        self._assert_is_instance(struct, StructType, "struct type")
+
+        # Проверяем, что в структуре 4 объявления
+        self.assertEqual(len(struct.declarations), 4)
+
+        # Проверяем типы объявлений
+        decl1 = struct.declarations[0]
+        self._assert_is_instance(decl1, FieldDeclaration, "field declaration x")
+
+        decl2 = struct.declarations[1]
+        self._assert_is_instance(decl2, SymbolDeclaration, "symbol declaration bar")
+
+        decl3 = struct.declarations[2]
+        self._assert_is_instance(decl3, FieldDeclaration, "field declaration y")
+
+        decl4 = struct.declarations[3]
+        self._assert_is_instance(decl4, SymbolDeclaration, "symbol declaration foo")
+
+        self._assert_no_errors(parser)
+
 
 class TestParserErrorCases(ParserTestCase):
     """Тесты обработки ошибок"""

@@ -4,8 +4,8 @@ from bytelang import Parser
 
 def test_parser():
     source_code = """
-pub def foo = fn() {}
-"""
+    def math = import()
+    """
 
     lexer = Lexer("test.bl", source_code)
     lexer.process()
@@ -20,10 +20,6 @@ pub def foo = fn() {}
     if not tokens:
         print("No tokens generated")
         return
-    print('\n'.join((
-        f"{i:4}: {t.type}({t.value})"
-        for i, t in enumerate(tokens)
-    )))
 
     parser = Parser(tokens)
     ast = parser.module()
@@ -31,6 +27,7 @@ pub def foo = fn() {}
     if ast is not None:
         print(f"{ast=}")
     else:
+        print('\n'.join((f"{i:4}: {t.type}({t.value})" for i, t in enumerate(tokens))))
         print('\n'.join(map(str, parser.errors())))
 
 

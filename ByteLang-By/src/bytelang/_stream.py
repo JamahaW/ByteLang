@@ -23,7 +23,7 @@ class OutputStream[T]:
 
     def peek(self) -> Optional[T]:
         """Get item on cursor if available"""
-        if self._position < len(self._items):
+        if not self.is_eof():
             return self._items[self._position]
 
         return None
@@ -33,3 +33,7 @@ class OutputStream[T]:
         ret = self.peek()
         self._position += 1
         return ret
+
+    def is_eof(self) -> bool:
+        """Check if we're at end of stream"""
+        return self._position >= len(self._items)

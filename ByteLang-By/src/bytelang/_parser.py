@@ -28,7 +28,6 @@ from bytelang._ast import IntegerLiteral
 from bytelang._ast import ListLiteral
 from bytelang._ast import LocalSymbol
 from bytelang._ast import LocalVariable
-from bytelang._ast import Module
 from bytelang._ast import Name
 from bytelang._ast import PointerType
 from bytelang._ast import PublicDeclaration
@@ -246,32 +245,17 @@ class Parser:
         # Для field declaration парсим как обычно
         return self.field_declaration()
 
-    def module(self) -> Optional[Module]:
+    def module(self) -> Optional[StructType]:
         """Parse input tokens into Bytelang AST Module Node"""
-        declarations = list[Declaration]()
-        first: Optional[Token] = None
+        first = self._tokens.peek()
 
-        while True:
-            token = self._tokens.peek()  # Используем peek вместо next
+        # Парсим объявления до конца файла (без терминатора)
+        declarations = self._parse_declaration_block()
 
-            if token is None:
-                break
+        if declarations is None:
+            return None
 
-            if token.type == TokenType.newline:
-                self._tokens.next()  # Потребляем newline
-                continue
-
-            if first is None:
-                first = token
-
-            declaration = self.declaration()
-
-            if declaration is None:
-                return None
-
-            declarations.append(declaration)
-
-        return Module(first, declarations)
+        return StructType(first, declarations)
 
     def expression(self) -> Optional[Expression]:
         """Dispatch expression parsing based on first token"""
@@ -291,8 +275,7 @@ class Parser:
             return self.address_take()
 
         # Undefined literal: undefined
-        if (first_token.type == TokenType.identifier and
-                first_token.value == self._keyword_undefined_value):
+        if first_token.type == TokenType.identifier and first_token.value == self._keyword_undefined_value:
             self._tokens.pop_position()
             return self.undefined_value()
 
@@ -324,29 +307,36 @@ class Parser:
             self._tokens.pop_position()
             return self.list_literal()
 
-        # Try function call as expression: name(...)
+        # Function type: fn (...)
+        if first_token.type == TokenType.identifier and first_token.value == self._keyword_function:
+            self._tokens.pop_position()
+            return self.function_type()
+
+        # Struct type: struct { ... }
+        if first_token.type == TokenType.identifier and first_token.value == self._keyword_struct:
+            self._tokens.pop_position()
+            return self.struct_type()
+
+        # Try function call as expression: name(...) or just name
         if first_token.type == TokenType.identifier:
-            # Parse name to see if it's followed by '('
+            # Parse name
             self._tokens.pop_position()  # Restore to parse from name
-            self._tokens.push_position()  # Save for backtracking
 
             name = self.name()
             if not name:
-                self._tokens.pop_position()
+                # Если не удалось распарсить name, возвращаем ошибку
                 return None
 
             # Check if this is a function call
             next_token = self._tokens.peek()
             if next_token and next_token.type == TokenType.bracket_open_round:
                 # It's a function call - parse it
-                self._tokens.pop_position()  # Pop the push_position
                 function_call = self.function_call()
                 if not function_call:
                     return None
                 return FunctionCallValue(function_call.main_token, function_call)
 
-            # Not a function call, restore position and return name
-            self._tokens.pop_position()
+            # Not a function call, return name
             return Name(name.main_token, name.identifier, name.inner)
 
         # No valid expression found
@@ -742,15 +732,16 @@ class Parser:
         if self._consume(TokenType.bracket_open_figure) is None:
             return None
 
-        module = self.module()
+        # Парсим объявления до закрывающей фигурной скобки
+        declarations = self._parse_declaration_block(TokenType.bracket_close_figure)
 
-        if module is None:
+        if declarations is None:
             return None
 
         if self._consume(TokenType.bracket_close_figure) is None:
             return None
 
-        return StructType(token, module)
+        return StructType(token, declarations)
 
     def function_type(self) -> Optional[FunctionType]:
         """parse function type"""
@@ -871,6 +862,39 @@ class Parser:
             return None
 
         return token
+
+    def _parse_declaration_block(self, terminator: Optional[TokenType] = None) -> Optional[Sequence[Declaration]]:
+        """Parse a block of declarations until terminator token or EOF"""
+        declarations = list[Declaration]()
+
+        while True:
+            # Пропускаем переносы строк
+            while self._tokens.peek() and self._tokens.peek().type == TokenType.newline:
+                self._tokens.next()
+
+            # Проверяем, не достигли ли мы конца или терминатора
+            token = self._tokens.peek()
+
+            if token is None:
+                # Конец файла
+                if terminator:
+                    self._add_error(f"Unexpected EOF, expected {terminator}")
+                break
+
+            if terminator and token.type == terminator:
+                break
+            elif not terminator and self._tokens.is_eof():
+                # Если нет терминатора, ждем EOF
+                break
+
+            # Парсим объявление
+            declaration = self.declaration()
+            if declaration is None:
+                return None
+
+            declarations.append(declaration)
+
+        return declarations
 
     def _parse_list[T](
             self,

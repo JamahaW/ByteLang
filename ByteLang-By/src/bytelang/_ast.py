@@ -114,17 +114,6 @@ class FieldDeclaration(Declaration):
 
 
 @dataclass(frozen=True)
-class Module(Node):
-    """
-    Module
-
-    [<declaration> '\n']*
-    """
-
-    declarations: Sequence[Declaration]
-
-
-@dataclass(frozen=True)
 class FunctionCall(Node):
     """
     Function call
@@ -367,13 +356,12 @@ class PureType(Type):
 
 @dataclass(frozen=True)
 class StructType(Type):
-    """
-    Struct itself
+    """Struct type"""
 
-    'struct' '{' <module> '}'
-    """
+    declarations: Sequence[Declaration]
 
-    module: Module
+    def __post_init__(self) -> None:
+        super().__init__(self.main_token)
 
 
 @dataclass(frozen=True)
