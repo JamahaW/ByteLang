@@ -98,7 +98,7 @@ def User = struct {
     // Поля
 
     // Публичное поле
-    pub name: str,
+    pub name: str
 
     // Приватное поле
     age: i32

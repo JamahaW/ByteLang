@@ -27,7 +27,51 @@ class Identifier(Node):
 
 
 @dataclass(frozen=True)
-class Symbol(Node):
+class Declaration(Node):
+    """
+    Declaration (in struct)
+    """
+
+
+@dataclass(frozen=True)
+class Statement(Node):
+    """
+    Statement (in function)
+    """
+
+
+@dataclass(frozen=True)
+class Expression(Node):
+    """
+    Evaluable Expression
+    """
+
+
+@dataclass(frozen=True)
+class Public(Declaration):
+    """
+    Marks inner declaration as public
+
+    'pub' <declaration>
+    """
+
+    inner: Declaration
+
+
+@dataclass(frozen=True)
+class Field(Declaration):
+    """
+    Field
+
+    <id> ':' <type>
+    """
+
+    identifier: Identifier
+    type: Expression
+
+
+@dataclass(frozen=True)
+class Symbol(Declaration, Statement):
     """
     Symbol
 
@@ -39,7 +83,7 @@ class Symbol(Node):
 
 
 @dataclass(frozen=True)
-class Variable(Node):
+class Variable(Declaration, Statement):
     """
     Variable
 
@@ -51,70 +95,39 @@ class Variable(Node):
 
 
 @dataclass(frozen=True)
-class Field(Node):
+class Assign(Statement):
     """
-    Field
+    Execute assignment
 
-    <id> ':' <type>
+    <name> '=' <expr>
     """
-
-    identifier: Identifier
-    type: Type
+    name: Name
+    expression: Expression
 
 
 @dataclass(frozen=True)
-class Declaration(Node):
+class Return(Statement):
     """
-    Declaration
+    Return Statement
+
+    'return [<expr>]'
     """
+    returns: Optional[Expression]
 
 
 @dataclass(frozen=True)
-class PublicDeclaration(Declaration):
+class FunctionSignature(Expression):
     """
-    Marks inner declaration as public
+    Function Signature
 
-    'pub' <declaration>
+    '(' <field> [',' <field>]* ')' <type>
     """
-
-    inner: Declaration
+    arguments: Sequence[Field]
+    return_type: Expression
 
 
 @dataclass(frozen=True)
-class SymbolDeclaration(Declaration):
-    """
-    Declaration of symbol
-
-    <symbol>
-    """
-
-    symbol: Symbol
-
-
-@dataclass(frozen=True)
-class VariableDeclaration(Declaration):
-    """
-    Declaration of variable
-
-    <variable>
-    """
-
-    variable: Variable
-
-
-@dataclass(frozen=True)
-class FieldDeclaration(Declaration):
-    """
-    Declaration of field
-
-    <field>
-    """
-
-    field: Field
-
-
-@dataclass(frozen=True)
-class FunctionCall(Node):
+class FunctionCall(Statement, Expression):
     """
     Function call
 
@@ -123,24 +136,6 @@ class FunctionCall(Node):
 
     name: Name
     arguments: Sequence[Expression]
-
-
-@dataclass(frozen=True)
-class FunctionSignature(Node):
-    """
-    Function Signature
-
-    '(' <field> [',' <field>]* ')' <type>
-    """
-    arguments: Sequence[Field]
-    return_type: Type
-
-
-@dataclass(frozen=True)
-class Expression(Node):
-    """
-    Evaluable Expression
-    """
 
 
 @dataclass(frozen=True)
@@ -164,16 +159,6 @@ class Name(Expression):
 
 
 @dataclass(frozen=True)
-class FunctionCallValue(Expression):
-    """
-    function call as value
-
-    <call>
-    """
-    function_call: FunctionCall
-
-
-@dataclass(frozen=True)
 class AddressTake(Expression):
     """
     Address of variable
@@ -181,16 +166,6 @@ class AddressTake(Expression):
     '&' <name>
     """
     name: Name
-
-
-@dataclass(frozen=True)
-class Dereference(Expression):
-    """
-    Value of Address
-
-    '*' <name>
-    """
-    address: Expression
 
 
 @dataclass(frozen=True)
@@ -234,83 +209,18 @@ class ListLiteral(Expression):
 
 
 @dataclass(frozen=True)
-class Statement(Node):
-    """
-    Statement (in function)
-    """
-
-
-@dataclass(frozen=True)
-class LocalSymbol(Statement):
-    """
-    Define local symbol
-
-    <symbol>
-    """
-    symbol: Symbol
-
-
-@dataclass(frozen=True)
-class LocalVariable(Statement):
-    """
-    Define local variable
-
-    <variable>
-    """
-    variable: Variable
-
-
-@dataclass(frozen=True)
-class Assign(Statement):
-    """
-    Execute assignment
-
-    <name> '=' <expr>
-    """
-    name: Name
-    expression: Expression
-
-
-@dataclass(frozen=True)
-class FunctionCallStatement(Statement):
-    """
-    Execute function
-
-    <call>
-    """
-    function_call: FunctionCall
-
-
-@dataclass(frozen=True)
-class Return(Statement):
-    """
-    Return Statement
-
-    'return [<expr>]'
-    """
-    returns: Optional[Expression]
-
-
-@dataclass(frozen=True)
-class Type(Expression):
-    """
-    Type node
-    """
-
-
-@dataclass(frozen=True)
-class PointerType(Type):
+class StarOperator(Expression):
     """
     Pointer on type
 
     '*' <type>
     """
 
-    type: Type
+    type: Expression
 
 
 @dataclass(frozen=True)
-class ArrayType(Type):
+class ArrayType(Expression):
     """
     Array
 
@@ -318,59 +228,34 @@ class ArrayType(Type):
     """
 
     size: IntegerLiteral
-    type: Type
+    item_type: Expression
 
 
 @dataclass(frozen=True)
-class SliceType(Type):
+class SliceType(Expression):
     """
     Slice
 
     `'[' ']' <type>`
     """
 
-    type: Type
+    item_type: Expression
 
 
 @dataclass(frozen=True)
-class FunctionSignatureType(Type):
-    """
-    function signature
-
-    <function_signature>
-    """
-
-    function_signature: FunctionSignature
-
-
-@dataclass(frozen=True)
-class PureType(Type):
-    """
-    Pure type (resolve by name)
-
-    <name>
-    """
-
-    name: Name
-
-
-@dataclass(frozen=True)
-class StructType(Type):
+class StructType(Expression):
     """Struct type"""
 
     declarations: Sequence[Declaration]
 
-    def __post_init__(self) -> None:
-        super().__init__(self.main_token)
-
 
 @dataclass(frozen=True)
-class FunctionType(Type):
+class FunctionType(Expression):
     """
     Function itself
 
     'fn' <function_signature_type> '{' [<statement> '\n']* '}'
     """
 
-    function_signature_type: FunctionSignatureType
+    function_signature: FunctionSignature
     statements: Sequence[Statement]

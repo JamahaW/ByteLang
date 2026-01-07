@@ -1,13 +1,14 @@
+from pathlib import Path
+
 from bytelang import Lexer
 from bytelang import Parser
 
 
-def test_parser():
-    source_code = """
-    def math = import()
-    """
+def test_parser(path: Path):
+    with open(path) as f:
+        source_code = f.read()
 
-    lexer = Lexer("test.bl", source_code)
+    lexer = Lexer(path.name, source_code)
     lexer.process()
 
     if lexer.errors():
@@ -32,4 +33,4 @@ def test_parser():
 
 
 if __name__ == "__main__":
-    test_parser()
+    test_parser(Path("test.bl"))

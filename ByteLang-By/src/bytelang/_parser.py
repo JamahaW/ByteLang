@@ -16,34 +16,24 @@ from bytelang._ast import Assign
 from bytelang._ast import Declaration
 from bytelang._ast import Expression
 from bytelang._ast import Field
-from bytelang._ast import FieldDeclaration
 from bytelang._ast import FunctionCall
-from bytelang._ast import FunctionCallStatement
-from bytelang._ast import FunctionCallValue
 from bytelang._ast import FunctionSignature
-from bytelang._ast import FunctionSignatureType
 from bytelang._ast import FunctionType
 from bytelang._ast import Identifier
 from bytelang._ast import IntegerLiteral
 from bytelang._ast import ListLiteral
-from bytelang._ast import LocalSymbol
-from bytelang._ast import LocalVariable
 from bytelang._ast import Name
-from bytelang._ast import PointerType
-from bytelang._ast import PublicDeclaration
-from bytelang._ast import PureType
+from bytelang._ast import Public
 from bytelang._ast import RealLiteral
 from bytelang._ast import Return
 from bytelang._ast import SliceType
+from bytelang._ast import StarOperator
 from bytelang._ast import Statement
 from bytelang._ast import StringLiteral
 from bytelang._ast import StructType
 from bytelang._ast import Symbol
-from bytelang._ast import SymbolDeclaration
-from bytelang._ast import Type
 from bytelang._ast import UndefinedValue
 from bytelang._ast import Variable
-from bytelang._ast import VariableDeclaration
 from bytelang._stream import OutputStream
 from bytelang._token import Token
 from bytelang._token import TokenType
@@ -52,16 +42,13 @@ from bytelang._token import TokenType
 class Parser:
     """ByteLang parser"""
 
-    # types
-
     @dataclass(frozen=True)
     class Error:
         """Parsing Error"""
         message: str
         token: Optional[Token]
 
-    # static const
-
+    # Keywords
     _keyword_public: ClassVar = "pub"
     _keyword_variable: ClassVar = "var"
     _keyword_symbol_define: ClassVar = "def"
@@ -70,8 +57,6 @@ class Parser:
     _keyword_return: ClassVar = "return"
     _keyword_struct: ClassVar = "struct"
 
-    # front-end
-
     def __init__(self, tokens: Sequence[Token]) -> None:
         self._tokens: Final = OutputStream(tokens)
         self._errors: Final = list[Parser.Error]()
@@ -79,6 +64,8 @@ class Parser:
     def errors(self) -> Sequence[Error]:
         """Get possible errors"""
         return self._errors
+
+    # Basic parsing methods
 
     def identifier(self) -> Optional[Identifier]:
         """Parse identifier"""
@@ -89,15 +76,379 @@ class Parser:
 
         return Identifier(main_token=token, id=token.value)
 
-    def symbol(self) -> Optional[Symbol]:
-        """Parse symbol"""
-        token = self._consume_keyword(self._keyword_symbol_define)
+    def name(self) -> Optional[Name]:
+        """Parse name (identifier with optional dots)"""
+        identifier = self.identifier()
 
+        if identifier is None:
+            return None
+
+        # Check for dot operator for nested names
+        next_token = self._tokens.peek()
+        if next_token and next_token.type == TokenType.operator_dot:
+            self._tokens.next()  # Consume '.'
+            inner = self.name()
+
+            if inner is None:
+                return None
+
+            return Name(main_token=identifier.main_token, identifier=identifier, inner=inner)
+
+        return Name(main_token=identifier.main_token, identifier=identifier, inner=None)
+
+    # Expression parsing
+
+    def expression(self) -> Optional[Expression]:
+        """Parse expression"""
+        # Skip leading newlines
+        while self._tokens.peek() and self._tokens.peek().type == TokenType.newline:
+            self._tokens.next()
+
+        first_token = self._tokens.peek()
+
+        if not first_token:
+            self._add_error("Unexpected EOF in expression")
+            return None
+
+        # Address take: &name
+        if first_token.type == TokenType.operator_address:
+            return self._parse_address_take()
+
+        # Undefined value
+        if first_token.type == TokenType.identifier and first_token.value == self._keyword_undefined_value:
+            return self._parse_undefined_value()
+
+        # Integer literals
+        if first_token.type in {
+            TokenType.literal_int_bin,
+            TokenType.literal_int_hex,
+            TokenType.literal_int_dec,
+            TokenType.literal_int_char,
+        }:
+            return self._parse_integer_literal()
+
+        # Real literals
+        if first_token.type in {TokenType.literal_real, TokenType.literal_real_exp}:
+            return self._parse_real_literal()
+
+        # String literal
+        if first_token.type == TokenType.literal_string:
+            return self._parse_string_literal()
+
+        # List literal
+        if first_token.type == TokenType.bracket_open_figure:
+            return self._parse_list_literal()
+
+        # Star operator: *expression
+        if first_token.type == TokenType.operator_star:
+            return self._parse_star_operator()
+
+        # Array or slice type: [size]expression or []expression
+        if first_token.type == TokenType.bracket_open_square:
+            return self._parse_array_or_slice_type()
+
+        # Function signature: (args) return_type
+        if first_token.type == TokenType.bracket_open_round:
+            return self._parse_function_signature()
+
+        # Function type: fn (...) { ... }
+        if first_token.type == TokenType.identifier and first_token.value == self._keyword_function:
+            return self._parse_function_type()
+
+        # Struct type: struct { ... }
+        if first_token.type == TokenType.identifier and first_token.value == self._keyword_struct:
+            return self._parse_struct_type()
+
+        # Identifier (could be name or function call)
+        if first_token.type == TokenType.identifier:
+            return self._parse_name_or_function_call()
+
+        # No valid expression
+        self._add_error(f"Unexpected token {first_token.type} in expression")
+        return None
+
+    def _parse_address_take(self) -> Optional[AddressTake]:
+        """Parse &name"""
+        token = self._consume(TokenType.operator_address)
         if token is None:
             return None
 
-        identifier = self.identifier()
+        name = self.name()
+        if name is None:
+            return None
 
+        return AddressTake(main_token=token, name=name)
+
+    def _parse_undefined_value(self) -> Optional[UndefinedValue]:
+        """Parse undefined"""
+        token = self._consume_keyword(self._keyword_undefined_value)
+        if token is None:
+            return None
+        return UndefinedValue(main_token=token)
+
+    def _parse_integer_literal(self) -> Optional[IntegerLiteral]:
+        """Parse integer literal"""
+        token = self._consume_set({
+            TokenType.literal_int_bin,
+            TokenType.literal_int_hex,
+            TokenType.literal_int_dec,
+            TokenType.literal_int_char,
+        })
+        if token is None:
+            return None
+        return IntegerLiteral(main_token=token, value=token.value)
+
+    def _parse_real_literal(self) -> Optional[RealLiteral]:
+        """Parse real literal"""
+        token = self._consume_set({TokenType.literal_real, TokenType.literal_real_exp})
+        if token is None:
+            return None
+        return RealLiteral(main_token=token, value=token.value)
+
+    def _parse_string_literal(self) -> Optional[StringLiteral]:
+        """Parse string literal"""
+        token = self._consume(TokenType.literal_string)
+        if token is None:
+            return None
+        return StringLiteral(main_token=token, value=token.value)
+
+    def _parse_list_literal(self) -> Optional[ListLiteral]:
+        """Parse list literal"""
+        token = self._tokens.peek()
+        values = self._parse_brackets_figure(self.expression)
+        if values is None:
+            return None
+        return ListLiteral(main_token=token, values=values)
+
+    def _parse_star_operator(self) -> Optional[StarOperator]:
+        """Parse *expression"""
+        token = self._consume(TokenType.operator_star)
+        if token is None:
+            return None
+
+        target = self.expression()
+        if target is None:
+            return None
+
+        return StarOperator(main_token=token, type=target)
+
+    def _parse_array_or_slice_type(self) -> Optional[ArrayType | SliceType]:
+        """Parse [size]expression or []expression"""
+        open_token = self._consume(TokenType.bracket_open_square)
+        if open_token is None:
+            return None
+
+        # Check if it's a slice (empty brackets)
+        next_token = self._tokens.peek()
+        if next_token and next_token.type == TokenType.bracket_close_square:
+            self._tokens.next()  # Consume ']'
+            item_type = self.expression()
+            if item_type is None:
+                return None
+            return SliceType(main_token=open_token, item_type=item_type)
+
+        # It's an array - parse size
+        size = self._parse_integer_literal()
+        if size is None:
+            self._add_error("Expected integer literal for array size")
+            return None
+
+        if self._consume(TokenType.bracket_close_square) is None:
+            return None
+
+        item_type = self.expression()
+        if item_type is None:
+            return None
+
+        return ArrayType(main_token=open_token, size=size, item_type=item_type)
+
+    def _parse_function_signature(self) -> Optional[FunctionSignature]:
+        """Parse (arguments) return_type"""
+        open_token = self._tokens.peek()
+        arguments = self._parse_brackets_round(self._parse_field)
+
+        if arguments is None:
+            return None
+
+        return_type = self.expression()
+        if return_type is None:
+            return None
+
+        return FunctionSignature(main_token=open_token, arguments=arguments, return_type=return_type)
+
+    def _parse_function_type(self) -> Optional[FunctionType]:
+        """Parse fn (arguments) return_type { statements }"""
+        fn_token = self._consume_keyword(self._keyword_function)
+        if fn_token is None:
+            return None
+
+        signature = self._parse_function_signature()
+        if signature is None:
+            return None
+
+        # Пропускаем newlines перед телом функции
+        while self._tokens.peek() and self._tokens.peek().type == TokenType.newline:
+            self._tokens.next()
+
+        if self._consume(TokenType.bracket_open_figure) is None:
+            return None
+
+        statements = self._parse_statements_block()
+        if statements is None:
+            return None
+
+        # Пропускаем newlines перед закрывающей скобкой
+        while self._tokens.peek() and self._tokens.peek().type == TokenType.newline:
+            self._tokens.next()
+
+        if self._consume(TokenType.bracket_close_figure) is None:
+            return None
+
+        return FunctionType(main_token=fn_token, function_signature=signature, statements=statements)
+
+    def _parse_struct_type(self) -> Optional[StructType]:
+        """Parse struct { declarations }"""
+        struct_token = self._consume_keyword(self._keyword_struct)
+        if struct_token is None:
+            return None
+
+        # Пропускаем newlines перед {
+        while self._tokens.peek() and self._tokens.peek().type == TokenType.newline:
+            self._tokens.next()
+
+        if self._consume(TokenType.bracket_open_figure) is None:
+            return None
+
+        declarations = self._parse_declarations_block(TokenType.bracket_close_figure, allow_commas=True)
+        if declarations is None:
+            return None
+
+        # Пропускаем newlines перед }
+        while self._tokens.peek() and self._tokens.peek().type == TokenType.newline:
+            self._tokens.next()
+
+        if self._consume(TokenType.bracket_close_figure) is None:
+            return None
+
+        return StructType(main_token=struct_token, declarations=declarations)
+
+    def _parse_name_or_function_call(self) -> Optional[Expression]:
+        """Parse name or function call"""
+        # Save position for backtracking
+        self._tokens.push_position()
+
+        # Parse name first
+        name = self.name()
+        if name is None:
+            self._tokens.pop_position()
+            return None
+
+        # Check if it's followed by '(' - function call
+        next_token = self._tokens.peek()
+        if next_token and next_token.type == TokenType.bracket_open_round:
+            # Don't restore position - we're sure it's a function call
+            self._tokens.pop_position()  # Remove saved position
+            # Now parse from the beginning of name again
+            self._tokens.push_position()  # Save current position
+            self._tokens.pop_position()  # Restore to position before name
+
+            # Parse name again
+            name = self.name()
+            arguments = self._parse_brackets_round(self.expression)
+            if arguments is None:
+                return None
+            return FunctionCall(main_token=name.main_token, name=name, arguments=arguments)
+
+        # Just a name - restore to position before name parsing
+        self._tokens.pop_position()
+
+        # Parse name without looking ahead
+        name = self.name()
+        if name is None:
+            return None
+
+        return name
+
+    # Statement parsing
+
+    def statement(self) -> Optional[Statement]:
+        """Parse statement"""
+        # Skip leading newlines
+        while self._tokens.peek() and self._tokens.peek().type == TokenType.newline:
+            self._tokens.next()
+
+        first_token = self._tokens.peek()
+
+        if not first_token:
+            self._add_error("Unexpected EOF in statement")
+            return None
+
+        # Symbol definition: def name = expression
+        if first_token.type == TokenType.identifier and first_token.value == self._keyword_symbol_define:
+            return self._parse_symbol()
+
+        # Variable declaration: var field = expression
+        if first_token.type == TokenType.identifier and first_token.value == self._keyword_variable:
+            return self._parse_variable()
+
+        # Return statement: return [expression]
+        if first_token.type == TokenType.identifier and first_token.value == self._keyword_return:
+            return self._parse_return_statement()
+
+        # Try to parse as name (could be assignment or function call)
+        if first_token.type == TokenType.identifier:
+            # Save position for backtracking
+            self._tokens.push_position()
+
+            name = self.name()
+            if name is None:
+                self._tokens.pop_position()
+                return None
+
+            # Check next token
+            next_token = self._tokens.peek()
+            if not next_token:
+                self._tokens.pop_position()
+                self._add_error("Unexpected EOF after name")
+                return None
+
+            # Assignment: name = expression
+            if next_token.type == TokenType.operator_assign:
+                self._tokens.pop_position()  # Restore to beginning of name
+                # Now parse the assignment
+                name = self.name()  # Parse name again
+                self._tokens.next()  # Consume '='
+                expression = self.expression()
+                if expression is None:
+                    return None
+                return Assign(main_token=name.main_token, name=name, expression=expression)
+
+            # Function call: name(arguments)
+            if next_token.type == TokenType.bracket_open_round:
+                self._tokens.pop_position()  # Restore to beginning of name
+                # Parse as function call
+                name = self.name()  # Parse name again
+                arguments = self._parse_brackets_round(self.expression)
+                if arguments is None:
+                    return None
+                return FunctionCall(main_token=name.main_token, name=name, arguments=arguments)
+
+            # Neither - error
+            self._tokens.pop_position()
+            self._add_error("Expected '=' or '(' after name")
+            return None
+
+        # No valid statement
+        self._add_error(f"Unexpected token {first_token.type} in statement")
+        return None
+
+    def _parse_symbol(self) -> Optional[Symbol]:
+        """Parse def name = expression"""
+        def_token = self._consume_keyword(self._keyword_symbol_define)
+        if def_token is None:
+            return None
+
+        identifier = self.identifier()
         if identifier is None:
             return None
 
@@ -105,21 +456,18 @@ class Parser:
             return None
 
         expression = self.expression()
-
         if expression is None:
             return None
 
-        return Symbol(token, identifier, expression)
+        return Symbol(main_token=def_token, identifier=identifier, expression=expression)
 
-    def variable(self) -> Optional[Variable]:
-        """Parse variable"""
-        token = self._consume_keyword(self._keyword_variable)
-
-        if token is None:
+    def _parse_variable(self) -> Optional[Variable]:
+        """Parse var field = expression"""
+        var_token = self._consume_keyword(self._keyword_variable)
+        if var_token is None:
             return None
 
-        field = self.field()
-
+        field = self._parse_field()
         if field is None:
             return None
 
@@ -127,695 +475,312 @@ class Parser:
             return None
 
         expression = self.expression()
-
         if expression is None:
             return None
 
-        return Variable(token, field, expression)
+        return Variable(main_token=var_token, field=field, expression=expression)
 
-    def field(self) -> Optional[Field]:
-        """Parse field"""
+    def _parse_return_statement(self) -> Optional[Return]:
+        """Parse return [expression]"""
+        return_token = self._consume_keyword(self._keyword_return)
+        if return_token is None:
+            return None
+
+        # Skip newlines after return
+        while self._tokens.peek() and self._tokens.peek().type == TokenType.newline:
+            self._tokens.next()
+
+        # Check if there's an expression or just return
+        next_token = self._tokens.peek()
+        if next_token is None:
+            return Return(main_token=return_token, returns=None)
+
+        # If next token is newline or closing brace, it's empty return
+        if next_token.type == TokenType.newline or next_token.type == TokenType.bracket_close_figure:
+            return Return(main_token=return_token, returns=None)
+
+        # Try to parse expression
+        expression = self.expression()
+        if expression is None:
+            # Couldn't parse expression, but might still be valid empty return
+            # Check if next token is newline or closing brace
+            next_after_error = self._tokens.peek()
+            if next_after_error and (next_after_error.type == TokenType.newline or
+                                     next_after_error.type == TokenType.bracket_close_figure):
+                return Return(main_token=return_token, returns=None)
+            return None
+
+        return Return(main_token=return_token, returns=expression)
+
+    # Declaration parsing
+
+    def declaration(self) -> Optional[Declaration]:
+        """Parse declaration"""
+        # Skip leading newlines
+        while self._tokens.peek() and self._tokens.peek().type == TokenType.newline:
+            self._tokens.next()
+
+        first_token = self._tokens.peek()
+
+        if not first_token:
+            return None
+
+        # Public declaration: pub declaration
+        if first_token.type == TokenType.identifier and first_token.value == self._keyword_public:
+            return self._parse_public_declaration()
+
+        # Symbol definition: def name = expression
+        if first_token.type == TokenType.identifier and first_token.value == self._keyword_symbol_define:
+            return self._parse_symbol()
+
+        # Variable declaration: var field = expression
+        if first_token.type == TokenType.identifier and first_token.value == self._keyword_variable:
+            return self._parse_variable()
+
+        # Field declaration: name: expression
+        if first_token.type == TokenType.identifier:
+            return self._parse_field()
+
+        # No valid declaration
+        self._add_error(f"Unexpected token {first_token.type} in declaration")
+        return None
+
+    def _parse_public_declaration(self) -> Optional[Public]:
+        """Parse pub declaration"""
+        pub_token = self._consume_keyword(self._keyword_public)
+        if pub_token is None:
+            return None
+
+        declaration = self.declaration()
+        if declaration is None:
+            return None
+
+        return Public(main_token=pub_token, inner=declaration)
+
+    def _parse_field(self) -> Optional[Field]:
+        """Parse name: expression"""
         identifier = self.identifier()
-
         if identifier is None:
             return None
 
         if self._consume(TokenType.delimiter_colon) is None:
             return None
 
-        _type = self.type()
-
-        if _type is None:
+        field_type = self.expression()
+        if field_type is None:
             return None
 
-        return Field(identifier.main_token, identifier, _type)
+        return Field(main_token=identifier.main_token, identifier=identifier, type=field_type)
 
-    def function_signature(self) -> Optional[FunctionSignature]:
-        """parse function signature"""
-        token = self._tokens.peek()
-        arguments = self._parse_brackets_round(self.field)
+    # Block parsing
 
-        if arguments is None:
-            return None
-
-        return_type = self.type()
-
-        if return_type is None:
-            return None
-
-        return FunctionSignature(token, arguments, return_type)
-
-    def function_call(self) -> Optional[FunctionCall]:
-        """parse function call"""
-
-        name = self.name()
-
-        if name is None:
-            return None
-
-        arguments = self._parse_brackets_round(self.expression)
-
-        if arguments is None:
-            return None
-
-        return FunctionCall(name.main_token, name, arguments)
-
-    def public_declaration(self) -> Optional[PublicDeclaration]:
-        """parse public declaration"""
-        token = self._consume_keyword(self._keyword_public)
-
-        if Token is None:
-            return None
-
-        declaration = self.declaration()
-
-        if declaration is None:
-            return None
-
-        return PublicDeclaration(token, declaration)
-
-    def symbol_declaration(self) -> Optional[SymbolDeclaration]:
-        """parse symbol declaration"""
-        symbol = self.symbol()
-
-        if symbol is None:
-            return None
-
-        return SymbolDeclaration(symbol.main_token, symbol)
-
-    def variable_declaration(self) -> Optional[VariableDeclaration]:
-        """parse symbol declaration"""
-        variable = self.variable()
-
-        if variable is None:
-            return None
-
-        return VariableDeclaration(variable.main_token, variable)
-
-    def field_declaration(self) -> Optional[FieldDeclaration]:
-        """parse field declaration"""
-        field = self.field()
-
-        if field is None:
-            return None
-
-        return FieldDeclaration(field.main_token, field)
-
-    def declaration(self) -> Optional[Declaration]:
-        """parse declaration"""
-        token = self._tokens.peek()  # Смотрим следующий токен
-
-        if token is None:
-            return None
-
-        if token.type != TokenType.identifier:
-            self._add_error(f"Expected identifier, got {token.type}")
-            return None
-
-        # Смотрим значение токена, но не потребляем его пока
-        if token.value == self._keyword_public:
-            return self.public_declaration()
-
-        if token.value == self._keyword_variable:
-            return self.variable_declaration()
-
-        if token.value == self._keyword_symbol_define:
-            return self.symbol_declaration()
-
-        # Для field declaration парсим как обычно
-        return self.field_declaration()
-
-    def module(self) -> Optional[StructType]:
-        """Parse input tokens into Bytelang AST Module Node"""
-        first = self._tokens.peek()
-
-        # Парсим объявления до конца файла (без терминатора)
-        declarations = self._parse_declaration_block()
-
-        if declarations is None:
-            return None
-
-        return StructType(first, declarations)
-
-    def expression(self) -> Optional[Expression]:
-        """Dispatch expression parsing based on first token"""
-        # Save position for all expression attempts
-        self._tokens.push_position()
-
-        # Check first token to determine expression type
-        first_token = self._tokens.peek()
-        if not first_token:
-            self._tokens.pop_position()
-            self._add_error("Unexpected EOF in expression")
-            return None
-
-        # Address take: &name
-        if first_token.type == TokenType.operator_address:
-            self._tokens.pop_position()
-            return self.address_take()
-
-        # Undefined literal: undefined
-        if first_token.type == TokenType.identifier and first_token.value == self._keyword_undefined_value:
-            self._tokens.pop_position()
-            return self.undefined_value()
-
-        # Integer literal: 123, 0xFF, 0b1010
-        if first_token.type in {
-            TokenType.literal_int_bin,
-            TokenType.literal_int_hex,
-            TokenType.literal_int_dec,
-            TokenType.literal_int_char,
-        }:
-            self._tokens.pop_position()
-            return self.integer_literal()
-
-        # Real literal: 123.456, 2.0f32
-        if first_token.type in {
-            TokenType.literal_real,
-            TokenType.literal_real_exp,
-        }:
-            self._tokens.pop_position()
-            return self.real_literal()
-
-        # String literal: "hello"
-        if first_token.type == TokenType.literal_string:
-            self._tokens.pop_position()
-            return self.string_literal()
-
-        # List literal: {1, 2, 3}
-        if first_token.type == TokenType.bracket_open_figure:
-            self._tokens.pop_position()
-            return self.list_literal()
-
-        # Function type: fn (...)
-        if first_token.type == TokenType.identifier and first_token.value == self._keyword_function:
-            self._tokens.pop_position()
-            return self.function_type()
-
-        # Struct type: struct { ... }
-        if first_token.type == TokenType.identifier and first_token.value == self._keyword_struct:
-            self._tokens.pop_position()
-            return self.struct_type()
-
-        # Try function call as expression: name(...) or just name
-        if first_token.type == TokenType.identifier:
-            # Parse name
-            self._tokens.pop_position()  # Restore to parse from name
-
-            name = self.name()
-            if not name:
-                # Если не удалось распарсить name, возвращаем ошибку
-                return None
-
-            # Check if this is a function call
-            next_token = self._tokens.peek()
-            if next_token and next_token.type == TokenType.bracket_open_round:
-                # It's a function call - parse it
-                function_call = self.function_call()
-                if not function_call:
-                    return None
-                return FunctionCallValue(function_call.main_token, function_call)
-
-            # Not a function call, return name
-            return Name(name.main_token, name.identifier, name.inner)
-
-        # No valid expression found
-        self._tokens.pop_position()
-        self._add_error(f"Unexpected token {first_token.type} in expression")
-        return None
-
-    def undefined_value(self) -> Optional[UndefinedValue]:
-        """Parse undefined value"""
-        token = self._consume_keyword(self._keyword_undefined_value)
-
-        if token is None:
-            return None
-
-        return UndefinedValue(token)
-
-    def name(self) -> Optional[Name]:
-        """parse name node"""
-        identifier = self.identifier()
-
-        if identifier is None:
-            return None
-
-        # Проверяем, есть ли следующий токен и является ли он точкой
-        next_token = self._tokens.peek()
-        if next_token is not None and next_token.type == TokenType.operator_dot:
-            self._tokens.next()  # consume '.'
-            inner = self.name()
-
-            if inner is None:
-                return None
-        else:
-            inner = None
-
-        return Name(identifier.main_token, identifier, inner)
-
-    def function_call_value(self) -> Optional[FunctionCallValue]:
-        """parse function call"""
-        function_call = self.function_call()
-
-        if function_call is None:
-            return None
-
-        return FunctionCallValue(function_call.main_token, function_call)
-
-    def address_take(self) -> Optional[AddressTake]:
-        """parse address take"""
-        token = self._consume(TokenType.operator_address)
-
-        if token is None:
-            return None
-
-        name = self.name()
-
-        if name is None:
-            return None
-
-        return AddressTake(token, name)
-
-    def integer_literal(self) -> Optional[IntegerLiteral]:
-        """parse integer literal"""
-        token = self._consume_set({
-            TokenType.literal_int_bin,
-            TokenType.literal_int_hex,
-            TokenType.literal_int_dec,
-            TokenType.literal_int_char,
-        })
-
-        if token is None:
-            return None
-
-        return IntegerLiteral(token, token.value)
-
-    def real_literal(self) -> Optional[RealLiteral]:
-        """parse real literal"""
-        token = self._consume_set({
-            TokenType.literal_real,
-            TokenType.literal_real_exp,
-        })
-
-        if token is None:
-            return None
-
-        return RealLiteral(token, token.value)
-
-    def string_literal(self) -> Optional[StringLiteral]:
-        """parse string literal"""
-        token = self._consume(TokenType.literal_string)
-
-        if token is None:
-            return None
-
-        return StringLiteral(token, token.value)
-
-    def list_literal(self) -> Optional[ListLiteral]:
-        """parse list literal"""
-        first = self._tokens.peek()
-        values = self._parse_brackets_figure(self.expression)
-
-        if values is None:
-            return None
-
-        return ListLiteral(first, values)
-
-    def statement(self) -> Optional[Statement]:
-        """Dispatch statement parsing based on first token"""
-        # Save position for all statement attempts
-        self._tokens.push_position()
-
-        # Check first token to determine statement type
-        first_token = self._tokens.peek()
-        if not first_token:
-            self._tokens.pop_position()
-            self._add_error("Unexpected EOF in statement")
-            return None
-
-        # Local symbol statement: def ...
-        if first_token.type == TokenType.identifier and first_token.value == self._keyword_symbol_define:
-            self._tokens.pop_position()
-            return self.local_symbol_statement()
-
-        # Local variable statement: var ...
-        if first_token.type == TokenType.identifier and first_token.value == self._keyword_variable:
-            self._tokens.pop_position()
-            return self.local_variable_statement()
-
-        # Return statement: return ...
-        if first_token.type == TokenType.identifier and first_token.value == self._keyword_return:
-            self._tokens.pop_position()
-            return self.return_statement()
-
-        # Try assign or function call statement (both start with name)
-        if first_token.type == TokenType.identifier:
-            # Parse name to see what follows
-            self._tokens.pop_position()  # Restore to parse from name
-            self._tokens.push_position()  # Save for backtracking
-
-            name = self.name()
-            if not name:
-                self._tokens.pop_position()
-                return None
-
-            # Check next token after name
-            next_token = self._tokens.peek()
-            if not next_token:
-                self._tokens.pop_position()
-                self._add_error("Unexpected EOF after name in statement")
-                return None
-
-            # Assign statement: name = ...
-            if next_token.type == TokenType.operator_assign:
-                self._tokens.pop_position()
-                return self.assign_statement()
-
-            # Function call statement: name(...)
-            if next_token.type == TokenType.bracket_open_round:
-                self._tokens.pop_position()
-                return self.function_call_statement()
-
-            # Neither assign nor function call - error
-            self._tokens.pop_position()
-            self._add_error("Expected '=' or '(' after name in statement")
-            return None
-
-        # No valid statement found
-        self._tokens.pop_position()
-        self._add_error(f"Unexpected token {first_token.type} in statement")
-        return None
-
-    def local_symbol_statement(self) -> Optional[LocalSymbol]:
-        """parse local symbol"""
-        symbol = self.symbol()
-
-        if symbol is None:
-            return None
-
-        return LocalSymbol(symbol.main_token, symbol)
-
-    def local_variable_statement(self) -> Optional[LocalVariable]:
-        """parse local variable"""
-        variable = self.variable()
-
-        if variable is None:
-            return None
-
-        return LocalVariable(variable.main_token, variable)
-
-    def assign_statement(self) -> Optional[Assign]:
-        """parse assign"""
-        name = self.name()
-
-        if name is None:
-            return None
-
-        if self._consume(TokenType.operator_assign) is None:
-            return None
-
-        expression = self.expression()
-
-        if expression is None:
-            return None
-
-        return Assign(name.main_token, name, expression)
-
-    def function_call_statement(self) -> Optional[FunctionCallStatement]:
-        """parse function call"""
-        function_call = self.function_call()
-
-        if function_call is None:
-            return None
-
-        return FunctionCallStatement(function_call.main_token, function_call)
-
-    def return_statement(self) -> Optional[Return]:
-        """parse return statement"""
-
-        token = self._consume_keyword(self._keyword_return)
-
-        if token is None:
-            return None
-
-        # Проверяем, есть ли следующий токен
-        next_token = self._tokens.peek()
-
-        if next_token is None or next_token.type == TokenType.newline:
-            expression = None
-
-        else:
-            expression = self.expression()
-
-            if expression is None:
-                return None
-
-        return Return(token, expression)
-
-    def type(self) -> Optional[Type]:
-        """Dispatch type parsing based on first token"""
-        # Save position for all type attempts
-        self._tokens.push_position()
-
-        # Check first token to determine type category
-        first_token = self._tokens.peek()
-        if not first_token:
-            self._tokens.pop_position()
-            return None
-
-        # Pointer type: *T
-        if first_token.type == TokenType.operator_star:
-            self._tokens.pop_position()
-            return self.pointer_type()
-
-        # Array or slice type: [size]T or []T
-        if first_token.type == TokenType.bracket_open_square:
-            self._tokens.pop_position()
-            # Сохраняем позицию для отката
-            self._tokens.push_position()
-
-            # Потребляем '['
-            if self._consume(TokenType.bracket_open_square) is None:
-                self._tokens.pop_position()
-                return None
-
-            # Проверяем, что следует за '['
-            next_token = self._tokens.peek()
-
-            if next_token and next_token.type == TokenType.bracket_close_square:
-                # Это срез
-                self._tokens.next()  # Потребляем ']'
-                _type = self.type()
-                if _type is None:
-                    self._tokens.pop_position()
-                    return None
-                self._tokens.pop_position()
-                return SliceType(first_token, _type)
-            else:
-                # Это должен быть массив
-                size = self.integer_literal()
-                if size is None:
-                    self._tokens.pop_position()
-                    # Если это не срез и не массив, то ошибка
-                    self._add_error("Expected integer literal or ']' after '['")
-                    return None
-
-                if self._consume(TokenType.bracket_close_square) is None:
-                    self._tokens.pop_position()
-                    return None
-
-                _type = self.type()
-                if _type is None:
-                    self._tokens.pop_position()
-                    return None
-
-                self._tokens.pop_position()
-                return ArrayType(first_token, size, _type)
-
-        # Function type with body: fn (...) T { ... }
-        if first_token.type == TokenType.identifier and first_token.value == self._keyword_function:
-            self._tokens.pop_position()
-            return self.function_type()
-
-        # Struct type: struct { ... }
-        if first_token.type == TokenType.identifier and first_token.value == self._keyword_struct:
-            self._tokens.pop_position()
-            return self.struct_type()
-
-        # Function signature type: (...) T
-        if first_token.type == TokenType.bracket_open_round:
-            self._tokens.pop_position()
-            return self.function_signature_type()
-
-        # Pure type (named type): name
-        self._tokens.pop_position()
-        return self.pure_type()
-
-    def pointer_type(self) -> Optional[PointerType]:
-        """parse pointer type"""
-        token = self._consume(TokenType.operator_star)
-
-        if token is None:
-            return None
-
-        _type = self.type()
-
-        if _type is None:
-            return None
-
-        return PointerType(token, _type)
-
-    def array_type(self) -> Optional[ArrayType]:
-        """parse array type"""
-        token = self._consume(TokenType.bracket_open_square)
-
-        if token is None:
-            return None
-
-        size = self.integer_literal()
-
-        if size is None:
-            return None
-
-        if self._consume(TokenType.bracket_close_square) is None:
-            return None
-
-        _type = self.type()
-
-        if _type is None:
-            return None
-
-        return ArrayType(token, size, _type)
-
-    def slice_type(self) -> Optional[SliceType]:
-        """parse slice type"""
-        token = self._consume(TokenType.bracket_open_square)
-
-        if token is None:
-            return None
-
-        if self._consume(TokenType.bracket_close_square) is None:
-            return None
-
-        _type = self.type()
-
-        if _type is None:
-            return None
-
-        return SliceType(token, _type)
-
-    def function_signature_type(self) -> Optional[FunctionSignatureType]:
-        """parse function signature type"""
-        function_signature = self.function_signature()
-
-        if function_signature is None:
-            return None
-
-        return FunctionSignatureType(function_signature.main_token, function_signature)
-
-    def pure_type(self) -> Optional[PureType]:
-        """parse pure type"""
-        name = self.name()
-
-        if name is None:
-            return None
-
-        return PureType(name.main_token, name)
-
-    def struct_type(self) -> Optional[StructType]:
-        """parse struct type"""
-        token = self._consume_keyword(self._keyword_struct)
-
-        if token is None:
-            return None
-
-        if self._consume(TokenType.bracket_open_figure) is None:
-            return None
-
-        # Парсим объявления до закрывающей фигурной скобки
-        declarations = self._parse_declaration_block(TokenType.bracket_close_figure)
-
-        if declarations is None:
-            return None
-
-        if self._consume(TokenType.bracket_close_figure) is None:
-            return None
-
-        return StructType(token, declarations)
-
-    def function_type(self) -> Optional[FunctionType]:
-        """parse function type"""
-        token = self._consume_keyword(self._keyword_function)
-
-        if token is None:
-            return None
-
-        function_signature_type = self.function_signature_type()
-
-        if function_signature_type is None:
-            return None
-
-        if self._consume(TokenType.bracket_open_figure) is None:
-            return None
-
+    def _parse_statements_block(self) -> Optional[Sequence[Statement]]:
+        """Parse block of statements"""
         statements = list[Statement]()
 
         while True:
-            token = self._tokens.peek()  # Используем peek
+            # Skip newlines
+            while self._tokens.peek() and self._tokens.peek().type == TokenType.newline:
+                self._tokens.next()
 
-            if token is None:
-                self._add_error("Unexpected EOF in function type")
-                return None
-
+            # Check for end of block
+            token = self._tokens.peek()
+            if not token:
+                break
             if token.type == TokenType.bracket_close_figure:
-                self._tokens.next()  # Потребляем закрывающую скобку
                 break
 
-            if token.type == TokenType.newline:
-                self._tokens.next()
-                continue
-
+            # Parse statement
             statement = self.statement()
-
             if statement is None:
+                # Couldn't parse statement, but might be end of block
+                # Check if next token is closing brace
+                if self._tokens.peek() and self._tokens.peek().type == TokenType.bracket_close_figure:
+                    break
                 return None
 
             statements.append(statement)
 
-        return FunctionType(token, function_signature_type, statements)
+        return statements
 
-    # back-end
+    def _parse_declarations_block(self, terminator: Optional[TokenType] = None, allow_commas: bool = False) -> Optional[Sequence[Declaration]]:
+        """Parse block of declarations with optional commas"""
+        declarations = list[Declaration]()
+
+        while True:
+            # Skip newlines
+            while self._tokens.peek() and self._tokens.peek().type == TokenType.newline:
+                self._tokens.next()
+
+            # Check for terminator or EOF
+            token = self._tokens.peek()
+            if not token:
+                break
+            if terminator and token.type == terminator:
+                break
+
+            # Parse declaration
+            declaration = self.declaration()
+            if declaration is None:
+                # Couldn't parse declaration, check if it's terminator
+                if terminator and self._tokens.peek() and self._tokens.peek().type == terminator:
+                    break
+                return None
+
+            declarations.append(declaration)
+
+            # Skip newlines
+            while self._tokens.peek() and self._tokens.peek().type == TokenType.newline:
+                self._tokens.next()
+
+            # Check for comma or terminator
+            next_token = self._tokens.peek()
+            if not next_token:
+                break
+
+            if terminator and next_token.type == terminator:
+                continue
+
+            if allow_commas and next_token.type == TokenType.delimiter_comma:
+                self._tokens.next()  # Consume comma
+                continue
+
+            # If no terminator (parsing module), just continue to next declaration
+            if not terminator:
+                continue
+
+            # If allow_commas is True but we didn't get a comma or terminator, it's an error
+            if allow_commas:
+                self._add_error(f"Expected comma or '{terminator}', got {next_token.type}")
+                return None
+
+        return declarations
+
+    # Module parsing
+
+    def module(self) -> Optional[StructType]:
+        """Parse module (file) as a struct type"""
+        # Skip initial newlines
+        while self._tokens.peek() and self._tokens.peek().type == TokenType.newline:
+            self._tokens.next()
+
+        first_token = self._tokens.peek()
+        if not first_token:
+            # Empty module
+            from bytelang._token import SourcePosition
+            dummy_token = Token(
+                token_type=TokenType.identifier,
+                value="module",
+                source_position=SourcePosition("", 0, 1, 1)
+            )
+            return StructType(main_token=dummy_token, declarations=())
+
+        declarations = self._parse_declarations_block(None, allow_commas=False)
+        if declarations is None:
+            return None
+
+        return StructType(main_token=first_token, declarations=declarations)
+
+    # Helper methods for parsing lists
+
+    def _parse_brackets_round[T](self, element_parser: Callable[[], Optional[T]]) -> Optional[Sequence[T]]:
+        """Parse (element, element, ...)"""
+        if self._consume(TokenType.bracket_open_round) is None:
+            return None
+
+        # Empty brackets
+        if self._tokens.peek() and self._tokens.peek().type == TokenType.bracket_close_round:
+            self._tokens.next()
+            return ()
+
+        elements = list[T]()
+
+        while True:
+            # Skip newlines
+            while self._tokens.peek() and self._tokens.peek().type == TokenType.newline:
+                self._tokens.next()
+
+            # Parse element
+            element = element_parser()
+            if element is None:
+                return None
+
+            elements.append(element)
+
+            # Skip newlines
+            while self._tokens.peek() and self._tokens.peek().type == TokenType.newline:
+                self._tokens.next()
+
+            # Check for comma or closing bracket
+            next_token = self._tokens.peek()
+            if not next_token:
+                self._add_error("Unexpected EOF in brackets")
+                return None
+
+            if next_token.type == TokenType.bracket_close_round:
+                self._tokens.next()
+                return elements
+
+            if next_token.type == TokenType.delimiter_comma:
+                self._tokens.next()
+                continue
+
+            self._add_error(f"Expected comma or ')', got {next_token.type}")
+            return None
+
+    def _parse_brackets_figure[T](self, element_parser: Callable[[], Optional[T]]) -> Optional[Sequence[T]]:
+        """Parse {element, element, ...}"""
+        if self._consume(TokenType.bracket_open_figure) is None:
+            return None
+
+        # Empty brackets
+        if self._tokens.peek() and self._tokens.peek().type == TokenType.bracket_close_figure:
+            self._tokens.next()
+            return ()
+
+        elements = list[T]()
+
+        while True:
+            # Skip newlines
+            while self._tokens.peek() and self._tokens.peek().type == TokenType.newline:
+                self._tokens.next()
+
+            # Parse element
+            element = element_parser()
+            if element is None:
+                return None
+
+            elements.append(element)
+
+            # Skip newlines
+            while self._tokens.peek() and self._tokens.peek().type == TokenType.newline:
+                self._tokens.next()
+
+            # Check for comma or closing bracket
+            next_token = self._tokens.peek()
+            if not next_token:
+                self._add_error("Unexpected EOF in braces")
+                return None
+
+            if next_token.type == TokenType.bracket_close_figure:
+                self._tokens.next()
+                return elements
+
+            if next_token.type == TokenType.delimiter_comma:
+                self._tokens.next()
+                continue
+
+            self._add_error(f"Expected comma or '}}', got {next_token.type}")
+            return None
+
+    # Token consumption helpers
 
     def _add_error(self, message: str) -> None:
-        """Add error at last token"""
+        """Add parsing error"""
         self._errors.append(self.Error(message, self._tokens.peek()))
 
-    # back-end: parsing process methods
-
-    def _match(self, expected_type: TokenType) -> Optional[Token]:
-        """
-        Checks peek token
-        :param expected_type:
-        :return:
-        """
-        token = self._tokens.peek()
-
-        if token is None:
-            self._add_error(f"Expected {expected_type}, got EOF")
-            return None
-
-        if token.type != expected_type:
-            self._add_error(f"Expected {expected_type}, got {token.type}")
-            return None
-
-        return token
-
     def _consume(self, expected_type: TokenType) -> Optional[Token]:
-        """
-        Eat token of expected type or none and write error
-        :param expected_type:
-        :return: Token with expected type or None
-        """
+        """Consume token of expected type or add error"""
         token = self._tokens.next()
 
         if token is None:
@@ -829,130 +794,28 @@ class Parser:
         return token
 
     def _consume_set(self, expected_types: set[TokenType]) -> Optional[Token]:
-        """
-        Eat token of expected type or none and write error
-        :param expected_types:
-        :return: Token with expected type or None
-        """
+        """Consume token of any expected type or add error"""
         token = self._tokens.next()
 
         if token is None:
-            self._add_error(f"Expected any in {expected_types}, got EOF")
+            self._add_error(f"Expected any of {expected_types}, got EOF")
             return None
 
         if token.type not in expected_types:
-            self._add_error(f"Expected any in {expected_types}, got {token.type}")
+            self._add_error(f"Expected any of {expected_types}, got {token.type}")
             return None
 
         return token
 
     def _consume_keyword(self, expected_identifier: str) -> Optional[Token]:
-        """
-        Eat identifier token with expected identifier value
-        :param expected_identifier:
-        :return: Token with Identifier type and expected value or none
-        """
+        """Consume identifier token with expected value"""
         token = self._consume(TokenType.identifier)
 
         if token is None:
             return None
 
         if token.value != expected_identifier:
-            self._add_error(f"'{token.value}' not an expected keyword '{expected_identifier}'")
+            self._add_error(f"Expected keyword '{expected_identifier}', got '{token.value}'")
             return None
 
         return token
-
-    def _parse_declaration_block(self, terminator: Optional[TokenType] = None) -> Optional[Sequence[Declaration]]:
-        """Parse a block of declarations until terminator token or EOF"""
-        declarations = list[Declaration]()
-
-        while True:
-            # Пропускаем переносы строк
-            while self._tokens.peek() and self._tokens.peek().type == TokenType.newline:
-                self._tokens.next()
-
-            # Проверяем, не достигли ли мы конца или терминатора
-            token = self._tokens.peek()
-
-            if token is None:
-                # Конец файла
-                if terminator:
-                    self._add_error(f"Unexpected EOF, expected {terminator}")
-                break
-
-            if terminator and token.type == terminator:
-                break
-            elif not terminator and self._tokens.is_eof():
-                # Если нет терминатора, ждем EOF
-                break
-
-            # Парсим объявление
-            declaration = self.declaration()
-            if declaration is None:
-                return None
-
-            declarations.append(declaration)
-
-        return declarations
-
-    def _parse_list[T](
-            self,
-            element_parser: Callable[[], Optional[T]],
-            delimiter: TokenType,
-            terminator: TokenType,
-            ignore: Optional[TokenType] = None
-    ) -> Optional[Sequence[T]]:
-        """Parse list of items separated by delimiter, terminated by terminator."""
-
-        def _skip():
-            while ignore and self._tokens.peek() and self._tokens.peek().type == ignore:
-                self._tokens.next()
-
-        _skip()
-
-        if self._tokens.peek() and self._tokens.peek().type == terminator:
-            self._tokens.next()
-            return ()
-
-        items = list[T]()
-
-        while True:
-            item = element_parser()
-
-            if item is None:
-                return None if not items else None
-
-            items.append(item)
-            _skip()
-
-            if self._tokens.peek() and self._tokens.peek().type == terminator:
-                self._tokens.next()
-                return items
-
-            if not self._tokens.peek() or self._tokens.peek().type != delimiter:
-                return None
-
-            self._tokens.next()
-            _skip()
-
-            if self._tokens.peek() and self._tokens.peek().type == terminator:
-                self._tokens.next()
-                return items
-
-    def _parse_brackets[T](
-            self,
-            element_parser: Callable[[], Optional[T]],
-            first: TokenType,
-            last: TokenType,
-    ) -> Optional[Sequence[T]]:
-        if self._consume(first) is None:
-            return None
-
-        return self._parse_list(element_parser, TokenType.delimiter_comma, last, TokenType.newline)
-
-    def _parse_brackets_round[T](self, element_parser: Callable[[], Optional[T]]) -> Optional[Sequence[T]]:
-        return self._parse_brackets(element_parser, TokenType.bracket_open_round, TokenType.bracket_close_round)
-
-    def _parse_brackets_figure[T](self, element_parser: Callable[[], Optional[T]]) -> Optional[Sequence[T]]:
-        return self._parse_brackets(element_parser, TokenType.bracket_open_figure, TokenType.bracket_close_figure)

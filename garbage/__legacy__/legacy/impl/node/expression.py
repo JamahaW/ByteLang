@@ -29,7 +29,7 @@ class Expression(SuperNode[SuperSemanticContext, RValueProfile, "Expression"], A
 
     @classmethod
     def parse(cls, parser: Parser) -> LogResult[Expression]:
-        match parser.tokens.peek().type:
+        match parser.tokens.peek().item_type:
             case TokenType.Identifier:
                 return Identifier.parse(parser)
 
@@ -113,7 +113,7 @@ class Literal[T](Expression):
         ret = ResultAccumulator()
         token = parser.tokens.next()
 
-        if (rv_maker := token.type.getRightValueMaker()) is None:
+        if (rv_maker := token.item_type.getRightValueMaker()) is None:
             ret.put(ErrOne(f"Ожидался литерал, получено: {token}"))
 
         return ret.map(lambda _: cls(rv_maker(token.value)))
@@ -138,7 +138,7 @@ class UnaryOp(Expression):
     def parse(cls, parser: Parser) -> LogResult[UnaryOp]:
         token = parser.tokens.next()
 
-        if (operator := token.type.asOperator()) is None:
+        if (operator := token.item_type.asOperator()) is None:
             return ErrOne(f"Ожидался оператор, получено: {token}")
 
         return Expression.parse(parser).map(lambda expr: cls(operator, expr))

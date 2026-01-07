@@ -23,7 +23,7 @@ class TypeNode(SuperNode[SuperSemanticContext, TypeProfile, 'Type'], ABC):
 
     @classmethod
     def parse(cls, parser: Parser) -> LogResult[TypeNode]:
-        match parser.tokens.peek().type:
+        match parser.tokens.peek().item_type:
             case TokenType.Star:
                 return PointerTypeNode.parse(parser)
 
