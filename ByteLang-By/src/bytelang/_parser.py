@@ -248,7 +248,7 @@ class Parser:
             return SliceType(main_token=open_token, item_type=item_type)
 
         # It's an array - parse size
-        size = self._parse_integer_literal()
+        size = self.expression()
         if size is None:
             self._add_error("Expected integer literal for array size")
             return None

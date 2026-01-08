@@ -63,7 +63,7 @@ class Field(Declaration):
     """
     Field
 
-    <id> ':' <type>
+    <id> ':' <expr>
     """
 
     identifier: Identifier
@@ -120,7 +120,7 @@ class FunctionSignature(Expression):
     """
     Function Signature
 
-    '(' <field> [',' <field>]* ')' <type>
+    '(' <field> [',' <field>]* ')' <expr>
     """
     arguments: Sequence[Field]
     return_type: Expression
@@ -213,7 +213,7 @@ class StarOperator(Expression):
     """
     Pointer on type
 
-    '*' <type>
+    '*' <expr>
     """
 
     type: Expression
@@ -224,10 +224,10 @@ class ArrayType(Expression):
     """
     Array
 
-    '[' <integer_literal> ']' <type>
+    '[' <expr> ']' <expr>
     """
 
-    size: IntegerLiteral
+    size: Expression
     item_type: Expression
 
 
@@ -236,7 +236,7 @@ class SliceType(Expression):
     """
     Slice
 
-    `'[' ']' <type>`
+    `'[' ']' <expr>`
     """
 
     item_type: Expression
@@ -254,7 +254,7 @@ class FunctionType(Expression):
     """
     Function itself
 
-    'fn' <function_signature_type> '{' [<statement> '\n']* '}'
+    'fn' <function_signature> '{' [<statement> '\n']* '}'
     """
 
     function_signature: FunctionSignature

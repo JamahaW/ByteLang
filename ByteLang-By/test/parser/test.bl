@@ -45,7 +45,7 @@ def ptr = *void
 
 def slice = []T
 
-def array = [10]T
+def array = [N]T
 
 def s = struct { p: T.name.name }
 
