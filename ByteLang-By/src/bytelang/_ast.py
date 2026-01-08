@@ -95,9 +95,44 @@ class Variable(Declaration, Statement):
 
 
 @dataclass(frozen=True)
+class StatementsBlock(Statement):
+    """
+    Block of statements
+
+    '{' <stmt>* '}'
+    """
+
+    statements: Sequence[Statement]
+
+
+@dataclass(frozen=True)
+class Loop(Statement):
+    """
+    Loop statement
+
+    'loop' <stmt-block>
+    """
+
+    body: StatementsBlock
+
+
+@dataclass(frozen=True)
+class Condition(Statement):
+    """
+    Condition statement
+
+    'if' <stmt-block> ['else' <stmt-block>]
+    """
+
+    condition: Expression
+    then_body: StatementsBlock
+    else_body: StatementsBlock
+
+
+@dataclass(frozen=True)
 class Assign(Statement):
     """
-    Execute assignment
+    Assign assignment
 
     <name> '=' <expr>
     """
@@ -113,6 +148,24 @@ class Return(Statement):
     'return [<expr>]'
     """
     returns: Optional[Expression]
+
+
+@dataclass(frozen=True)
+class Break(Statement):
+    """
+    Break Statement
+
+    'break'
+    """
+
+
+@dataclass(frozen=True)
+class Continue(Statement):
+    """
+    Continue Statement
+
+    'continue'
+    """
 
 
 @dataclass(frozen=True)
@@ -254,8 +307,8 @@ class FunctionType(Expression):
     """
     Function itself
 
-    'fn' <function_signature> '{' [<statement> '\n']* '}'
+    'fn' <function-signature> <statements-block>
     """
 
-    function_signature: FunctionSignature
-    statements: Sequence[Statement]
+    signature: FunctionSignature
+    body: StatementsBlock

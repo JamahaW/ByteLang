@@ -13,6 +13,9 @@ from typing import Sequence
 from bytelang._ast import AddressTake
 from bytelang._ast import ArrayType
 from bytelang._ast import Assign
+from bytelang._ast import Break
+from bytelang._ast import Condition
+from bytelang._ast import Continue
 from bytelang._ast import Declaration
 from bytelang._ast import Expression
 from bytelang._ast import Field
@@ -22,6 +25,7 @@ from bytelang._ast import FunctionType
 from bytelang._ast import Identifier
 from bytelang._ast import IntegerLiteral
 from bytelang._ast import ListLiteral
+from bytelang._ast import Loop
 from bytelang._ast import Name
 from bytelang._ast import Public
 from bytelang._ast import RealLiteral
@@ -29,6 +33,7 @@ from bytelang._ast import Return
 from bytelang._ast import SliceType
 from bytelang._ast import StarOperator
 from bytelang._ast import Statement
+from bytelang._ast import StatementsBlock
 from bytelang._ast import StringLiteral
 from bytelang._ast import StructType
 from bytelang._ast import Symbol
@@ -56,6 +61,11 @@ class Parser:
     _keyword_function: ClassVar = "fn"
     _keyword_return: ClassVar = "return"
     _keyword_struct: ClassVar = "struct"
+    _keyword_if: ClassVar = "if"
+    _keyword_else: ClassVar = "else"
+    _keyword_loop: ClassVar = "loop"
+    _keyword_break: ClassVar = "break"
+    _keyword_continue: ClassVar = "continue"
 
     def __init__(self, tokens: Sequence[Token]) -> None:
         self._tokens: Final = OutputStream(tokens)
@@ -278,33 +288,19 @@ class Parser:
 
     def _parse_function_type(self) -> Optional[FunctionType]:
         """Parse fn (arguments) return_type { statements }"""
-        fn_token = self._consume_keyword(self._keyword_function)
-        if fn_token is None:
+        token = self._consume_keyword(self._keyword_function)
+        if token is None:
             return None
 
         signature = self._parse_function_signature()
         if signature is None:
             return None
 
-        # Пропускаем newlines перед телом функции
-        while self._tokens.peek() and self._tokens.peek().type == TokenType.newline:
-            self._tokens.next()
-
-        if self._consume(TokenType.bracket_open_figure) is None:
+        body = self._parse_statements_block()
+        if body is None:
             return None
 
-        statements = self._parse_statements_block()
-        if statements is None:
-            return None
-
-        # Пропускаем newlines перед закрывающей скобкой
-        while self._tokens.peek() and self._tokens.peek().type == TokenType.newline:
-            self._tokens.next()
-
-        if self._consume(TokenType.bracket_close_figure) is None:
-            return None
-
-        return FunctionType(main_token=fn_token, function_signature=signature, statements=statements)
+        return FunctionType(token, signature, body)
 
     def _parse_struct_type(self) -> Optional[StructType]:
         """Parse struct { declarations }"""
@@ -394,6 +390,22 @@ class Parser:
         # Return statement: return [expression]
         if first_token.type == TokenType.identifier and first_token.value == self._keyword_return:
             return self._parse_return_statement()
+
+        # break
+        if first_token.type == TokenType.identifier and first_token.value == self._keyword_break:
+            return self._parse_break_statement()
+
+        # continue
+        if first_token.type == TokenType.identifier and first_token.value == self._keyword_continue:
+            return self._parse_continue_statement()
+
+        # loop
+        if first_token.type == TokenType.identifier and first_token.value == self._keyword_loop:
+            return self._parse_loop_statement()
+
+        # if
+        if first_token.type == TokenType.identifier and first_token.value == self._keyword_if:
+            return self._parse_condition_statement()
 
         # Try to parse as name (could be assignment or function call)
         if first_token.type == TokenType.identifier:
@@ -512,6 +524,69 @@ class Parser:
 
         return Return(main_token=return_token, returns=expression)
 
+    def _parse_break_statement(self) -> Optional[Break]:
+        """parse break"""
+        token = self._consume_keyword(self._keyword_break)
+
+        if token is None:
+            return None
+
+        return Break(token)
+
+    def _parse_continue_statement(self) -> Optional[Continue]:
+        """parse break"""
+        token = self._consume_keyword(self._keyword_continue)
+
+        if token is None:
+            return None
+
+        return Continue(token)
+
+    def _parse_loop_statement(self) -> Optional[Loop]:
+        """parse break"""
+        token = self._consume_keyword(self._keyword_loop)
+
+        if token is None:
+            return None
+
+        body = self._parse_statements_block()
+        if body is None:
+            return None
+
+        return Loop(token, body)
+
+    def _parse_condition_statement(self) -> Optional[Condition]:
+        """parse break"""
+        if_token = self._consume_keyword(self._keyword_if)
+
+        if if_token is None:
+            return None
+
+        condition = self.expression()
+
+        if condition is None:
+            return None
+
+        then_body = self._parse_statements_block()
+
+        if then_body is None:
+            return None
+
+        else_token = self._tokens.peek()
+
+        if else_token is not None and else_token.type == TokenType.identifier and else_token.value == self._keyword_else:
+            self._tokens.next()
+
+            else_body = self._parse_statements_block()
+
+            if else_token is None:
+                return None
+
+        else:
+            else_body = StatementsBlock(if_token, ())
+
+        return Condition(if_token, condition, then_body, else_body)
+
     # Declaration parsing
 
     def declaration(self) -> Optional[Declaration]:
@@ -574,34 +649,59 @@ class Parser:
 
     # Block parsing
 
-    def _parse_statements_block(self) -> Optional[Sequence[Statement]]:
-        """Parse block of statements"""
-        statements = list[Statement]()
+    def _parse_statements_block(self) -> Optional[StatementsBlock]:
+        """ '{' <stmt>* '}' """
 
-        while True:
-            # Skip newlines
-            while self._tokens.peek() and self._tokens.peek().type == TokenType.newline:
-                self._tokens.next()
+        def __block() -> Optional[Sequence[Statement]]:
+            ret = list[Statement]()
 
-            # Check for end of block
-            token = self._tokens.peek()
-            if not token:
-                break
-            if token.type == TokenType.bracket_close_figure:
-                break
+            while True:
+                # Skip newlines
+                while self._tokens.peek() and self._tokens.peek().type == TokenType.newline:
+                    self._tokens.next()
 
-            # Parse statement
-            statement = self.statement()
-            if statement is None:
-                # Couldn't parse statement, but might be end of block
-                # Check if next token is closing brace
-                if self._tokens.peek() and self._tokens.peek().type == TokenType.bracket_close_figure:
+                # Check for end of block
+                t = self._tokens.peek()
+
+                if not t:
                     break
-                return None
 
-            statements.append(statement)
+                if t.type == TokenType.bracket_close_figure:
+                    break
 
-        return statements
+                # Parse statement
+                s = self.statement()
+                if s is None:
+                    # Couldn't parse statement, but might be end of block
+                    # Check if next token is closing brace
+                    if self._tokens.peek() and self._tokens.peek().type == TokenType.bracket_close_figure:
+                        break
+                    return None
+
+                ret.append(s)
+
+            return ret
+
+        # Пропускаем newlines перед телом функции
+        while self._tokens.peek() and self._tokens.peek().type == TokenType.newline:
+            self._tokens.next()
+
+        token = self._consume(TokenType.bracket_open_figure)
+        if token is None:
+            return None
+
+        statements = __block()
+        if statements is None:
+            return None
+
+        # Пропускаем newlines перед закрывающей скобкой
+        while self._tokens.peek() and self._tokens.peek().type == TokenType.newline:
+            self._tokens.next()
+
+        if self._consume(TokenType.bracket_close_figure) is None:
+            return None
+
+        return StatementsBlock(token, statements)
 
     def _parse_declarations_block(self, terminator: Optional[TokenType] = None, allow_commas: bool = False) -> Optional[Sequence[Declaration]]:
         """Parse block of declarations with optional commas"""
@@ -649,7 +749,7 @@ class Parser:
             if not terminator:
                 continue
 
-            # If allow_commas is True but we didn't get a comma or terminator, it's an error
+            # If allow_commas is True, but we didn't get a comma or terminator, it's an error
             if allow_commas:
                 self._add_error(f"Expected comma or '{terminator}', got {next_token.type}")
                 return None

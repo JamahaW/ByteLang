@@ -40,8 +40,13 @@ class Token[T]:
         self.value: Final = value
         self.source_position: Final = source_position
 
-    def __repr__(self) -> str:
-        return f"Token({self.type.name}, {repr(self.value)}, src={self.source_position})"
+    def __str__(self) -> str:
+        ret = self.type.name
+
+        if self.value is not None:
+            ret += f"({self.value})"
+
+        return f'{ret} {self.source_position}'
 
 
 class TokenType(Enum):

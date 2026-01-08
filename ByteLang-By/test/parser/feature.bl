@@ -1,0 +1,13 @@
+// if-else while
+
+def main = fn() void {
+    loop {
+        if sos.all() { continue }
+
+        if am.o(g.us) {
+            break
+        } else {
+            return
+        }
+    }
+}
