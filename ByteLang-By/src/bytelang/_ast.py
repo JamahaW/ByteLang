@@ -5,310 +5,203 @@ from dataclasses import field
 from typing import Optional
 from typing import Sequence
 
+from bytelang._operators import BinaryOp
+from bytelang._operators import UnaryOp
 from bytelang._token import Token
 
 
 @dataclass(frozen=True)
 class Node:
-    """ByteLang AST Node"""
-
-    main_token: Token = field(repr=False)
-
-
-@dataclass(frozen=True)
-class Identifier(Node):
-    """
-    Pure id
-
-    id_name_123
-    """
-
-    id: str
-
-
-@dataclass(frozen=True)
-class Declaration(Node):
-    """
-    Declaration (in struct)
-    """
-
-
-@dataclass(frozen=True)
-class Statement(Node):
-    """
-    Statement (in function)
-    """
+    """Base AST node"""
+    token: Token = field(repr=False)
 
 
 @dataclass(frozen=True)
 class Expression(Node):
-    """
-    Evaluable Expression
-    """
+    """Expression node (evaluates to a value)"""
 
 
 @dataclass(frozen=True)
-class Public(Declaration):
-    """
-    Marks inner declaration as public
-
-    'pub' <declaration>
-    """
-
-    inner: Declaration
+class Statement(Node):
+    """Statement node (performs an action)"""
 
 
 @dataclass(frozen=True)
-class Field(Declaration):
-    """
-    Field
-
-    <id> ':' <expr>
-    """
-
-    identifier: Identifier
-    type: Expression
+class Declaration(Node):
+    """Declaration node (defines something)"""
 
 
 @dataclass(frozen=True)
-class Symbol(Declaration, Statement):
-    """
-    Symbol
-
-    'def' <id> '=' <expr>
-    """
-
-    identifier: Identifier
-    expression: Expression
-
-
-@dataclass(frozen=True)
-class Variable(Declaration, Statement):
-    """
-    Variable
-
-    'var' <field> '=' <expr>
-    """
-
-    field: Field
-    expression: Expression
-
-
-@dataclass(frozen=True)
-class StatementsBlock(Statement):
-    """
-    Block of statements
-
-    '{' <stmt>* '}'
-    """
-
-    statements: Sequence[Statement]
-
-
-@dataclass(frozen=True)
-class Loop(Statement):
-    """
-    Loop statement
-
-    'loop' <stmt-block>
-    """
-
-    body: StatementsBlock
-
-
-@dataclass(frozen=True)
-class Condition(Statement):
-    """
-    Condition statement
-
-    'if' <stmt-block> ['else' <stmt-block>]
-    """
-
-    condition: Expression
-    then_body: StatementsBlock
-    else_body: StatementsBlock
-
-
-@dataclass(frozen=True)
-class Assign(Statement):
-    """
-    Assign assignment
-
-    <name> '=' <expr>
-    """
-    name: Name
-    expression: Expression
-
-
-@dataclass(frozen=True)
-class Return(Statement):
-    """
-    Return Statement
-
-    'return [<expr>]'
-    """
-    returns: Optional[Expression]
-
-
-@dataclass(frozen=True)
-class Break(Statement):
-    """
-    Break Statement
-
-    'break'
-    """
-
-
-@dataclass(frozen=True)
-class Continue(Statement):
-    """
-    Continue Statement
-
-    'continue'
-    """
-
-
-@dataclass(frozen=True)
-class FunctionSignature(Expression):
-    """
-    Function Signature
-
-    '(' <field> [',' <field>]* ')' <expr>
-    """
-    arguments: Sequence[Field]
-    return_type: Expression
-
-
-@dataclass(frozen=True)
-class FunctionCall(Statement, Expression):
-    """
-    Function call
-
-    <name> '(' [<expr> [ ',' <expr> ]* ] ')'
-    """
-
-    name: Name
-    arguments: Sequence[Expression]
-
-
-@dataclass(frozen=True)
-class UndefinedValue(Expression):
-    """
-    Undefined initializer value
-
-    'undefined'
-    """
-
-
-@dataclass(frozen=True)
-class Name(Expression):
-    """
-    Name
-
-    <id> ['.' <name>]
-    """
-    identifier: Identifier
-    inner: Optional[Name]
-
-
-@dataclass(frozen=True)
-class AddressTake(Expression):
-    """
-    Address of variable
-
-    '&' <name>
-    """
-    name: Name
+class Identifier(Expression):
+    """Identifier reference"""
+    name: str
 
 
 @dataclass(frozen=True)
 class IntegerLiteral(Expression):
-    """
-    Integer Literal
-
-    <int>
-    """
+    """Integer literal"""
     value: int
 
 
 @dataclass(frozen=True)
 class RealLiteral(Expression):
-    """
-    real value literal
-
-    <real>
-    """
+    """Real number literal"""
     value: float
 
 
 @dataclass(frozen=True)
 class StringLiteral(Expression):
-    """
-    String Literal
-
-    <string>
-    """
+    """String literal"""
     value: str
 
 
 @dataclass(frozen=True)
-class ListLiteral(Expression):
-    """
-    Initializer list literal
-
-    '{' <expr> [',' <expr>]* '}'
-    """
-    values: Sequence[Expression]
+class UndefinedLiteral(Expression):
+    """Undefined value literal"""
 
 
 @dataclass(frozen=True)
-class StarOperator(Expression):
-    """
-    Pointer on type
+class UnaryExpression(Expression):
+    """Unary operator expression"""
+    operator: UnaryOp
+    operand: Expression
 
-    '*' <expr>
-    """
 
+@dataclass(frozen=True)
+class BinaryExpression(Expression):
+    """Binary operator expression"""
+    operator: BinaryOp
+    left: Expression
+    right: Expression
+
+
+@dataclass(frozen=True)
+class CallExpression(Expression, Statement):
+    """Function call expression (can be both expression and statement)"""
+    callee: Expression
+    arguments: Sequence[Expression]
+
+
+@dataclass(frozen=True)
+class IndexExpression(Expression):
+    """Index access expression"""
+    container: Expression
+    index: Expression
+
+
+@dataclass(frozen=True)
+class MemberExpression(Expression):
+    """Member access expression"""
+    object: Expression
+    member: Identifier
+
+
+@dataclass(frozen=True)
+class Field(Declaration):
+    """Field declaration: name: type"""
+    name: Identifier
     type: Expression
 
 
 @dataclass(frozen=True)
-class ArrayType(Expression):
-    """
-    Array
-
-    '[' <expr> ']' <expr>
-    """
-
-    size: Expression
-    item_type: Expression
-
-
-@dataclass(frozen=True)
-class SliceType(Expression):
-    """
-    Slice
-
-    `'[' ']' <expr>`
-    """
-
-    item_type: Expression
-
-
-@dataclass(frozen=True)
-class StructType(Expression):
-    """Struct type"""
-
-    declarations: Sequence[Declaration]
+class FunctionSignature(Expression):
+    """Function signature: sig (params) return_type"""
+    parameters_types: Sequence[Expression]
+    return_type: Expression
 
 
 @dataclass(frozen=True)
 class FunctionType(Expression):
-    """
-    Function itself
+    """Function type: fn signature block"""
+    parameters: Sequence[Field]
+    return_type: Expression
+    body: Block
 
-    'fn' <function-signature> <statements-block>
-    """
 
-    signature: FunctionSignature
-    body: StatementsBlock
+@dataclass(frozen=True)
+class ArrayType(Expression):
+    """Array type: [size]element_type"""
+    size: Expression
+    element_type: Expression
+
+
+@dataclass(frozen=True)
+class SliceType(Expression):
+    """Slice type: []element_type"""
+    element_type: Expression
+
+
+@dataclass(frozen=True)
+class StructType(Expression):
+    """Struct type: { declarations }"""
+    declarations: Sequence[Declaration]
+
+
+@dataclass(frozen=True)
+class Block(Statement):
+    """Block of statements"""
+    statements: Sequence[Statement]
+
+
+@dataclass(frozen=True)
+class IfStatement(Statement):
+    """If statement: if condition { ... } [else { ... }]"""
+    condition: Expression
+    then_branch: Block
+    else_branch: Optional[Block] = None
+
+
+@dataclass(frozen=True)
+class LoopStatement(Statement):
+    """Loop statement: loop { ... }"""
+    body: Block
+
+
+@dataclass(frozen=True)
+class ReturnStatement(Statement):
+    """Return statement: return [expression]"""
+    value: Optional[Expression] = None
+
+
+@dataclass(frozen=True)
+class BreakStatement(Statement):
+    """Break statement: break"""
+
+
+@dataclass(frozen=True)
+class ContinueStatement(Statement):
+    """Continue statement: continue"""
+
+
+@dataclass(frozen=True)
+class AssignStatement(Statement):
+    """Assignment statement: target = value"""
+    target: Expression
+    value: Expression
+
+
+@dataclass(frozen=True)
+class Public(Declaration):
+    """Public declaration: pub declaration"""
+    declaration: Declaration
+
+
+@dataclass(frozen=True)
+class Symbol(Declaration, Statement):
+    """Symbol declaration: def name = expression"""
+    name: Identifier
+    value: Expression
+
+
+@dataclass(frozen=True)
+class Variable(Declaration, Statement):
+    """Variable declaration: var name: type = value"""
+    name: Identifier
+    type: Expression
+    value: Expression
+
+
+@dataclass(frozen=True)
+class ListLiteral(Expression):
+    """List literal: { value, value, ... }"""
+    values: Sequence[Expression]

@@ -1,1 +1,2 @@
-def foo = 1 + (&x + *a.b) / 1
+def exit_sig_ptr = 0x00 as *sig(u32) void
+

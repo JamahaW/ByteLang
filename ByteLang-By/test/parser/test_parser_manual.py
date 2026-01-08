@@ -9,7 +9,7 @@ def test_parser(path: Path):
         source_code = f.read()
 
     lexer = Lexer(path.name, source_code)
-    lexer.process()
+    tokens = lexer.tokenize()
 
     if lexer.errors():
         print("Lexer errors:")
@@ -17,13 +17,12 @@ def test_parser(path: Path):
             print(f"  {error}")
         return
 
-    tokens = lexer.tokens()
     if not tokens:
         print("No tokens generated")
         return
 
     parser = Parser(tokens)
-    ast = parser.module()
+    ast = parser.parse_module()
 
     if ast is not None:
         print(f"{ast=}")
@@ -33,4 +32,4 @@ def test_parser(path: Path):
 
 
 if __name__ == "__main__":
-    test_parser(Path("test.bl"))
+    test_parser(Path("feature.bl"))

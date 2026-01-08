@@ -1,49 +1,42 @@
-from enum import Enum
 from enum import StrEnum
-from typing import Final
 
 
-class UnaryOperator(StrEnum):
-    """Unary Operators"""
-
-    reference = "&"
+class UnaryOp(StrEnum):
+    """Unary operators"""
+    positive = "+"
+    negative = "-"
     star = "*"
+    address_of = "&"
     logical_not = "not"
 
 
-class BinaryOperator(Enum):
-    """Binary Operators"""
+class BinaryOp(StrEnum):
+    """Binary operators"""
+    # type cast
+    type_cast = "as"
 
-    # mul
-    mul = ("*", 40)
-    div = ("/", 40)
-    mod = ("%", 40)
+    # Arithmetic
+    add = "+"
+    sub = "-"
+    mul = "*"
+    div = "/"
+    mod = "%"
 
-    # additive
-    add = ("+", 30)
-    sub = ("-", 30)
+    # Bitwise
+    bitwise_and = "&"
+    bitwise_or = "|"
+    bitwise_xor = "^"
+    shift_left = "<<"
+    shift_right = ">>"
 
-    # shifts
-    bit_shift_left = ("<<", 25)
-    bit_shift_right = (">>", 25)
+    # Comparison
+    equal = "=="
+    not_equal = "!="
+    less = "<"
+    greater = ">"
+    less_equal = "<="
+    greater_equal = ">="
 
-    # bitwise
-    bit_and = ("&", 20)
-    bit_xor = ("^", 15)
-    bit_or = ("|", 10)
-
-    # comparisons
-    equal = ("==", 9)
-    not_equal = ("!=", 9)
-    less = ("<", 9)
-    greater = (">", 9)
-    less_or_equal = ("<=", 9)
-    greater_or_equal = (">=", 9)
-
-    # logical
-    logical_and = ("and", 5)
-    logical_or = ("or", 4)
-
-    def __init__(self, lexeme: str, priority: int):
-        self.lexeme: Final = lexeme
-        self.priority: Final = priority
+    # Logical
+    logical_and = "and"
+    logical_or = "or"

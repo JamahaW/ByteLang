@@ -3,37 +3,37 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 from typing import Callable
 from typing import Final
 from typing import Optional
-from typing import final
 
 
 @dataclass
 class SourcePosition:
     """Source code position"""
-
     name: str
     cursor: int
     line: int
     col: int
 
     def clone(self) -> SourcePosition:
-        """Make clone of position"""
         return SourcePosition(self.name, self.cursor, self.line, self.col)
 
+    def advance(self, chars: int) -> None:
+        self.cursor += chars
+        self.col += chars
+
     def new_line(self) -> None:
-        """Move cursor to new line"""
         self.line += 1
         self.col = 1
 
     def __str__(self):
-        return f"in '{self.name}' at {self.line}:{self.col} ({self.cursor})"
+        return f"'{self.name}' {self.line}:{self.col}"
 
 
-@final
 class Token[T]:
-    """Token"""
+    """Token with value"""
 
     def __init__(self, *, token_type: TokenType, value: T, source_position: SourcePosition) -> None:
         self.type = token_type
@@ -41,121 +41,93 @@ class Token[T]:
         self.source_position: Final = source_position
 
     def __str__(self) -> str:
-        ret = self.type.name
-
-        if self.value is not None:
-            ret += f"({self.value})"
-
-        return f'{ret} {self.source_position}'
+        if self.value is None:
+            return f"{self.type.name}"
+        return f"{self.type.name}({repr(self.value)})"
 
 
 class TokenType(Enum):
-    """Token Type"""
+    """Token types with regex patterns"""
+
+    # Logical operators
+    logical_not = (r'not\b', Token[None], None)
+    logical_and = (r'and\b', Token[None], None)
+    logical_or = (r'or\b', Token[None], None)
+    type_cast = (r'as\b', Token[None], None)
+
+    # Keywords
+    keyword_pub = (r'pub\b', Token[None], None)
+    keyword_var = (r'var\b', Token[None], None)
+    keyword_def = (r'def\b', Token[None], None)
+    keyword_fn = (r'fn\b', Token[None], None)
+    keyword_sig = (r'sig\b', Token[None], None)
+    keyword_struct = (r'struct\b', Token[None], None)
+    keyword_if = (r'if\b', Token[None], None)
+    keyword_else = (r'else\b', Token[None], None)
+    keyword_loop = (r'loop\b', Token[None], None)
+    keyword_return = (r'return\b', Token[None], None)
+    keyword_break = (r'break\b', Token[None], None)
+    keyword_continue = (r'continue\b', Token[None], None)
+    keyword_undefined = (r'undefined\b', Token[None], None)
+
+    # Identifiers
+    identifier = (r'[a-zA-Z_][a-zA-Z0-9_]*', Token[str], str)
+    comment = (r'//.*', Token[str], str)
 
     # Literals
-
-    literal_string = (r'\"(?:[^\"\\]|\\.)*\"', Token[str], lambda s: s[1:-1])
-    """ "string" """
-
-    literal_real_exp = (r'-?\d+(?:\.\d+)?[eE][-+]?\d+', Token[float], float)
-    """ -12e-34 """
-
-    literal_real_dec = (r'-?\d+\.\d+', Token[float], float)
-    """ -123.456 """
-
-    @classmethod
-    def literal_reals(cls):
-        """Get all reals literal"""
-        return {
-            cls.literal_real_exp,
-            cls.literal_real_dec,
-        }
-
-    literal_int_hex = (r'0x[0-9a-fA-F]+', Token[int], lambda s: int(s, 16))
-    """ 0x67 """
-
-    literal_int_bin = (r'0b[01]+', Token[int], lambda s: int(s[2:], 2))
-    """ 0b1010 """
-
-    literal_int_dec = (r'-?\d+', Token[int], int)
-    """ -123456 """
-
-    literal_int_char = (r'\'(?:[^\'\\]|\\.)\'', Token[int], lambda s: ord(s[1:-1]))
-    """ 'A' """
-
-    @classmethod
-    def literal_ints(cls):
-        """Get all reals literal"""
-        return {
-            cls.literal_int_bin,
-            cls.literal_int_hex,
-            cls.literal_int_dec,
-            cls.literal_int_char,
-        }
+    string = (r'\"(?:[^\"\\]|\\.)*\"', Token[str], lambda s: s[1:-1])
+    scientific_real = (r'-?\d+(?:\.\d+)?[eE][-+]?\d+', Token[float], float)
+    real = (r'-?\d+\.\d+', Token[float], float)
+    hex_integer = (r'0x[0-9a-fA-F]+', Token[int], lambda s: int(s, 16))
+    binary_integer = (r'0b[01]+', Token[int], lambda s: int(s[2:], 2))
+    integer = (r'-?\d+', Token[int], int)
+    char = (r'\'(?:[^\'\\]|\\.)\'', Token[int], lambda s: ord(s[1:-1]))
 
     # Brackets
-
-    bracket_open_round = (r'\(', Token[None], None)
-    """ ( """
-
-    bracket_close_round = (r'\)', Token[None], None)
-    """ ) """
-
-    bracket_open_square = (r'\[', Token[None], None)
-    """ [ """
-
-    bracket_close_square = (r'\]', Token[None], None)
-    """ ] """
-
-    bracket_open_figure = (r'\{', Token[None], None)
-    """ { """
-
-    bracket_close_figure = (r'\}', Token[None], None)
-    """ } """
-
-    # Delimiters
-
-    delimiter_comma = (r',', Token[None], None)
-    """ , """
-
-    delimiter_colon = (r':', Token[None], None)
-    """ : """
-
-    delimiter_dot = (r'\.', Token[None], None)
-    """ . """
-
-    delimiter_assign = (r'=', Token[None], None)
-    """ = """
+    paren_open = (r'\(', Token[None], None)
+    paren_close = (r'\)', Token[None], None)
+    bracket_open = (r'\[', Token[None], None)
+    bracket_close = (r'\]', Token[None], None)
+    brace_open = (r'\{', Token[None], None)
+    brace_close = (r'\}', Token[None], None)
 
     # Operators
+    shift_left = (r'<<', Token[None], None)
+    shift_right = (r'>>', Token[None], None)
+    equal = (r'==', Token[None], None)
+    not_equal = (r'!=', Token[None], None)
+    less_equal = (r'<=', Token[None], None)
+    greater_equal = (r'>=', Token[None], None)
 
-    operator_star = (r'\*', Token[None], None)
-    """ * """
+    # Single character operators
+    plus = (r'\+', Token[None], None)
+    minus = (r'-', Token[None], None)
+    star = (r'\*', Token[None], None)
+    slash = (r'/', Token[None], None)
+    percent = (r'%', Token[None], None)
+    ampersand = (r'&', Token[None], None)
+    pipe = (r'\|', Token[None], None)
+    caret = (r'\^', Token[None], None)
+    less = (r'<', Token[None], None)
+    greater = (r'>', Token[None], None)
 
-    operator_address = (r'\&', Token[None], None)
-    """ & """
+    # Delimiters
+    comma = (r',', Token[None], None)
+    colon = (r':', Token[None], None)
+    dot = (r'\.', Token[None], None)
+    assign = (r'=', Token[None], None)
 
-    # Others
-
-    identifier = (r'[a-zA-Z_][a-zA-Z0-9_]*', Token[str], str)
-    """ identifier """
-
-    comment = (r'//.*', Token[str], str)
-    """ // comment """
-
+    # Whitespace
     whitespace = (r'[ \t]+', Token[None], None)
-    """ whitespace """
-
     newline = (r'\n', Token[None], None)
-    """ newline """
 
-    def __init__(self, regex: str, token_class: type[Token], value_from_lexeme: Optional[Callable[[str], object]]) -> None:
+    def __init__(self, regex: str, token_class: type[Token], value_from_lexeme: Optional[Callable[[str], Any]]) -> None:
         self.pattern: Final[re.Pattern[str]] = re.compile(regex)
         self._token_class: Final[type[Token]] = token_class
         self._value_from_lexeme = value_from_lexeme
 
     def make(self, lexeme: str, source_position: SourcePosition) -> Token:
-        """Make token from source"""
+        """Create token from lexeme"""
         return self._token_class(
             token_type=self,
             value=None if self._value_from_lexeme is None else self._value_from_lexeme(lexeme),
@@ -163,5 +135,29 @@ class TokenType(Enum):
         )
 
     def skip(self) -> bool:
-        """Should this token be skipped?"""
+        """Should this token be skipped in token stream?"""
         return self in {TokenType.comment, TokenType.whitespace}
+
+    @classmethod
+    def integer_types(cls) -> set[TokenType]:
+        """All integer literal types"""
+        return {cls.integer, cls.hex_integer, cls.binary_integer, cls.char}
+
+    @classmethod
+    def real_types(cls) -> set[TokenType]:
+        """All real literal types"""
+        return {cls.real, cls.scientific_real}
+
+    @classmethod
+    def logical_operators(cls) -> set[TokenType]:
+        """All logical operator types"""
+        return {cls.logical_not, cls.logical_and, cls.logical_or}
+
+    @classmethod
+    def keyword_types(cls) -> set[TokenType]:
+        """All keyword types"""
+        return {
+            cls.keyword_pub, cls.keyword_var, cls.keyword_def, cls.keyword_fn, cls.keyword_sig,
+            cls.keyword_struct, cls.keyword_if, cls.keyword_else, cls.keyword_loop,
+            cls.keyword_return, cls.keyword_break, cls.keyword_continue, cls.keyword_undefined
+        }
