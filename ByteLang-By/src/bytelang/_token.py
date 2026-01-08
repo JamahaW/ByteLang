@@ -60,8 +60,16 @@ class TokenType(Enum):
     literal_real_exp = (r'-?\d+(?:\.\d+)?[eE][-+]?\d+', Token[float], float)
     """ -12e-34 """
 
-    literal_real = (r'-?\d+\.\d+', Token[float], float)
+    literal_real_dec = (r'-?\d+\.\d+', Token[float], float)
     """ -123.456 """
+
+    @classmethod
+    def literal_reals(cls):
+        """Get all reals literal"""
+        return {
+            cls.literal_real_exp,
+            cls.literal_real_dec,
+        }
 
     literal_int_hex = (r'0x[0-9a-fA-F]+', Token[int], lambda s: int(s, 16))
     """ 0x67 """
@@ -74,6 +82,16 @@ class TokenType(Enum):
 
     literal_int_char = (r'\'(?:[^\'\\]|\\.)\'', Token[int], lambda s: ord(s[1:-1]))
     """ 'A' """
+
+    @classmethod
+    def literal_ints(cls):
+        """Get all reals literal"""
+        return {
+            cls.literal_int_bin,
+            cls.literal_int_hex,
+            cls.literal_int_dec,
+            cls.literal_int_char,
+        }
 
     # Brackets
 
@@ -103,13 +121,13 @@ class TokenType(Enum):
     delimiter_colon = (r':', Token[None], None)
     """ : """
 
-    # Operators
-
-    operator_dot = (r'\.', Token[None], None)
+    delimiter_dot = (r'\.', Token[None], None)
     """ . """
 
-    operator_assign = (r'=', Token[None], None)
+    delimiter_assign = (r'=', Token[None], None)
     """ = """
+
+    # Operators
 
     operator_star = (r'\*', Token[None], None)
     """ * """
