@@ -53,6 +53,9 @@ class ParseError:
     message: str
     token: Optional[Token]
 
+    def __str__(self):
+        return f"{self.message}: {self.token}"
+
 
 class Parser:
     """ByteLang parser with Pratt parsing"""
@@ -413,7 +416,7 @@ class Parser:
 
     def _parse_list_literal(self, token: Token) -> Optional[ListLiteral]:
         """Parse list literal {value, ...}"""
-        self._tokens.next()  # Consume '{'
+        # # Consume '{' in _parse_comma_separated
         values = self._parse_comma_separated(
             TokenType.brace_open,
             TokenType.brace_close,

@@ -1,2 +1,1 @@
-def exit_sig_ptr = 0x00 as *sig(u32) void
-
+def exit_sig_ptr = {1 + 2 * 3}

@@ -5,7 +5,7 @@ from bytelang import Parser
 
 
 def test_parser(path: Path):
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         source_code = f.read()
 
     lexer = Lexer(path.name, source_code)
@@ -32,4 +32,4 @@ def test_parser(path: Path):
 
 
 if __name__ == "__main__":
-    test_parser(Path("feature.bl"))
+    test_parser(Path("example.bl"))

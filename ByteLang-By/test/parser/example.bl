@@ -10,34 +10,34 @@ pub def exit = 0x00 as *sig(u32) void
 
 // Вызов пользовательской функции
 // push IP, аллокация ret и локальных переменных
-pub def call = 0x00 as *sig(*void, u8) void
+pub def call = 0x01 as *sig(*void, u8) void
 
 // restore IP, освободить стек
-pub def ret = 0x00 as *sig() void
+pub def ret = 0x02 as *sig() void
 
 // *SP = *source
 // Положить на стек адрес переменной
-pub def push_address = 0x00 as *sig(*void) void
+pub def push_address = 0x03 as *sig(*void) void
 
 // *SP = *source
 // Положить на стек значение переменной
-pub def push_var = 0x00 as *sig(*Integer) void
+pub def push_var = 0x04 as *sig(*Integer) void
 
 // SP = source
 // Положить на стек константу
-pub def push_const = 0x00 as *sig(Integer) void
+pub def push_const = 0x05 as *sig(Integer) void
 
 // *dest = pop()
 // Выложить со стека в переменную
-pub def pop_in = 0x00 as *sig(*Integer) void
+pub def pop_in = 0x06 as *sig(*Integer) void
 
 // *target = value
 // Загрузить по адресу константу
-pub def store = 0x00 as *sig(*Integer, Integer) void
+pub def store = 0x07 as *sig(*Integer, Integer) void
 
 // *target = *source
 // Копирование переменных
-pub def copy = 0x00 as *sig(*Integer, *Integer) void
+pub def copy = 0x08 as *sig(*Integer, *Integer) void
 
 
 //!math.bl
@@ -112,7 +112,7 @@ def User = struct {
 
     // Методы
 
-    def init(self: *Self, name: str) void {
+    def init = fn(self: *Self, name: str) void {
         self.name = name
         self.age = 0
     },
@@ -143,20 +143,18 @@ var global_uninitialized_primitive: i32 = undefined
 // core.call(main, <main-stack-size>)
 // core.exit(0)
 
-var global_struct: Vector2i = {
-    123,
-    456
-}
+var global_struct: Vector2i = { 123, 456}
 
 pub var global_uninitialized_struct: Vector2i = undefined
 
 // Некоторая пользовательская нативная инструкция для симуляции ввода
-def input = cast(*fn()i32, 0x67)
+def input = 0x67 as *sig() i32
 
 // Публичная пользовательская функция
 // stack_alloc: sizeof(i32) + sizeof(i32) = 4 + 4 = 8
 pub def foo = fn(x: i32, vec: *Vector2i) i32 {
-    return input() + x + vex.x + vex.y
+    if x.is_odd() { return input() + x + vex.x + vex.y }
+    return x
 }
 
 // Точка входа
@@ -164,5 +162,14 @@ def main = fn() void {
     // runtime инициализация
     global_uninitialized_primitive = 123456
     global_uninitialized_struct = { foo(input(), &global_struct), input() }
+
+    loop {
+        if arduino.millis() < 10000 {
+            arduino.delay(1)
+            continue
+        }
+        break
+    }
+
     // Неявный return
 }

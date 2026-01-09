@@ -43,7 +43,7 @@ class Token[T]:
     def __str__(self) -> str:
         if self.value is None:
             return f"{self.type.name}"
-        return f"{self.type.name}({repr(self.value)})"
+        return f"{self.type.name}({repr(self.value)}) at {self.source_position}"
 
 
 class TokenType(Enum):
