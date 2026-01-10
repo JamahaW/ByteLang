@@ -59,6 +59,17 @@ def Player = struct {
 
     def move = fn(self: *Self) void {
         return self
+
+        g()
+
+        if x() {
+            x()
+            loop {
+                g()
+                break
+                continue
+            }
+        }
     },
 
     def kek = sig(u8) void, // may be trailing comma
