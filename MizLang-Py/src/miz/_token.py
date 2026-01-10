@@ -154,7 +154,7 @@ class TokenType(Enum):
     def __init__(self, regex: str, token_class: type[Token], value_from_lexeme: Optional[Callable[[str], Any]]) -> None:
         self.pattern: Final[re.Pattern[str]] = re.compile(regex)
         self._token_class: Final[type[Token]] = token_class
-        self._value_from_lexeme = value_from_lexeme
+        self._value_from_lexeme: Final = value_from_lexeme
 
     def make(self, lexeme: str, source_position: SourcePosition) -> Token:
         """Create token from lexeme"""
@@ -179,17 +179,80 @@ class TokenType(Enum):
         return {cls.real, cls.scientific_real}
 
     @classmethod
-    def logical_operators(cls) -> set[TokenType]:
-        """All logical operator types"""
-        return {cls.logical_not, cls.logical_and, cls.logical_or}
+    def build_precedence(cls) -> Mapping[TokenType, int]:
+        """Build operator precedence table"""
+        return {
+            # Logical (lowest)
+            cls.logical_or: 1,
+            cls.logical_and: 2,
+
+            # Comparison
+            cls.equal: 3,
+            cls.not_equal: 3,
+            cls.less: 3,
+            cls.greater: 3,
+            cls.less_equal: 3,
+            cls.greater_equal: 3,
+
+            # Bitwise
+            cls.pipe: 4,
+            cls.caret: 5,
+            cls.ampersand: 6,
+            cls.shift_left: 7,
+            cls.shift_right: 7,
+
+            # Additive
+            cls.plus: 8,
+            cls.minus: 8,
+
+            # Multiplicative
+            cls.star: 9,
+            cls.slash: 9,
+            cls.percent: 9,
+
+            # Postfix
+            cls.dot: 10,
+            cls.bracket_open: 10,
+            cls.paren_open: 10,
+
+            # type cast
+            cls.type_cast: 11,
+        }
 
     @classmethod
-    def keyword_types(cls) -> set[TokenType]:
-        """All keyword types"""
+    def build_unary_operator_map(cls) -> Mapping[TokenType, UnaryOp]:
+        """Build token to unary operator table"""
         return {
-            cls.keyword_pub, cls.keyword_var, cls.keyword_def, cls.keyword_fn, cls.keyword_sig,
-            cls.keyword_struct, cls.keyword_if, cls.keyword_else, cls.keyword_loop,
-            cls.keyword_return, cls.keyword_break, cls.keyword_continue, cls.keyword_undefined
+            cls.plus: UnaryOp.positive,
+            cls.minus: UnaryOp.negative,
+            cls.star: UnaryOp.star,
+            cls.ampersand: UnaryOp.address_of,
+            cls.logical_not: UnaryOp.logical_not,
+        }
+
+    @classmethod
+    def build_binary_operator_map(cls) -> Mapping[TokenType, BinaryOp]:
+        """Build token to unary operator table"""
+        return {
+            cls.plus: BinaryOp.add,
+            cls.minus: BinaryOp.sub,
+            cls.star: BinaryOp.mul,
+            cls.slash: BinaryOp.div,
+            cls.percent: BinaryOp.mod,
+            cls.ampersand: BinaryOp.bitwise_and,
+            cls.pipe: BinaryOp.bitwise_or,
+            cls.caret: BinaryOp.bitwise_xor,
+            cls.shift_left: BinaryOp.shift_left,
+            cls.shift_right: BinaryOp.shift_right,
+            cls.equal: BinaryOp.equal,
+            cls.not_equal: BinaryOp.not_equal,
+            cls.less: BinaryOp.less,
+            cls.greater: BinaryOp.greater,
+            cls.less_equal: BinaryOp.less_equal,
+            cls.greater_equal: BinaryOp.greater_equal,
+            cls.logical_and: BinaryOp.logical_and,
+            cls.logical_or: BinaryOp.logical_or,
+            cls.type_cast: BinaryOp.type_cast,
         }
 
     @classmethod

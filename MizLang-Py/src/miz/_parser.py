@@ -43,11 +43,6 @@ class Parser:
         self._errors: Final = list[ParseError]()
 
         self._prefix_parsers: Final[Mapping[TokenType, Callable[[Token], Optional[Expression]]]] = {
-            # Literals
-            TokenType.identifier: self.identifier_expression,
-            TokenType.string: self.string_literal,
-            TokenType.keyword_undefined: self.undefined_literal,
-
             # Grouping
             TokenType.paren_open: self.grouped_expression,
             TokenType.brace_open: self.list_literal,
@@ -64,6 +59,19 @@ class Parser:
             TokenType.keyword_fn: self.function_type,
             TokenType.keyword_sig: self.function_signature,
             TokenType.keyword_struct: self.struct_type,
+
+            # Literals
+            TokenType.identifier: self.identifier_expression,
+            TokenType.string: self.string_literal,
+            TokenType.keyword_undefined: self.undefined_literal,
+            **{
+                integer_token_type: self.integer_literal
+                for integer_token_type in TokenType.integer_types()
+            },
+            **{
+                real_token_type: self.real_literal
+                for real_token_type in TokenType.real_types()
+            },
         }
         """Prefix parser dispatch table"""
 
@@ -143,20 +151,12 @@ class Parser:
             self._error("Unexpected EOF in expression")
             return None
 
-        # Parse prefix expression
         prefix_parser = self._prefix_parsers.get(token.type)
-        if not prefix_parser:
-            # Handle literals not in prefix table
-            if token.type in TokenType.integer_types():
-                left = self.integer_literal()
-            elif token.type in TokenType.real_types():
-                left = self.real_literal()
-            else:
-                self._error(f"Unexpected token in expression: {token.type}")
-                return None
-        else:
-            left = prefix_parser(token)
+        if prefix_parser is None:
+            self._error(f"Unexpected token in expression: {token.type}")
+            return None
 
+        left = prefix_parser(token)
         if left is None:
             return None
 
@@ -320,23 +320,19 @@ class Parser:
             return None
         return Identifier(token, token.value)
 
-    def integer_literal(self) -> Optional[IntegerLiteral]:
+    def integer_literal(self, token: Token) -> Optional[IntegerLiteral]:
         """Parse integer literal"""
-        token = self._consume_set(TokenType.integer_types())
-        if token is None:
-            return None
+        self._tokens.next()  # Consume token
         return IntegerLiteral(token, token.value)
 
-    def real_literal(self) -> Optional[RealLiteral]:
+    def real_literal(self, token: Token) -> Optional[RealLiteral]:
         """Parse real literal"""
-        token = self._consume_set(TokenType.real_types())
-        if token is None:
-            return None
+        self._tokens.next()  # Consume token
         return RealLiteral(token, token.value)
 
     def string_literal(self, token: Token) -> Optional[StringLiteral]:
         """Parse string literal"""
-        self._tokens.next()  # Consume string token
+        self._tokens.next()  # Consume token
         return StringLiteral(token, token.value)
 
     #  type parsers
@@ -714,17 +710,6 @@ class Parser:
             return None
         if token.type != expected_type:
             self._error(f"Expected {expected_type}, got {token.type}")
-            return None
-        return token
-
-    def _consume_set(self, expected_types: set[TokenType]) -> Optional[Token]:
-        """Consume token of any expected type"""
-        token = self._tokens.next()
-        if token is None:
-            self._error(f"Expected any of {expected_types}, got EOF")
-            return None
-        if token.type not in expected_types:
-            self._error(f"Expected any of {expected_types}, got {token.type}")
             return None
         return token
 
