@@ -1,8 +1,0 @@
-# Конфигурация окружения
-
-.ptr_inst u8
-.ptr_prog u16
-.ptr_data i8
-
-.use pins
-

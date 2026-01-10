@@ -1,168 +1,134 @@
-// Показательный пример актуального видения языка ByteLang
-//!core.bl
-// Нативные функции ядра языка
+// Пример актуального видения языка MizLang
 
-// Определяем примитив для целочисленной арифметики
+//!core.miz
+// Нативные функции и примитивы ядра языка
+
+// Базовый целочисленный тип
 pub def Integer = i32
 
-// Завершает исполнение программы
-pub def exit = 0x00 as *sig(u32) void
+// Сигнатуры нативных операций для работы со стеком и памятью
+def UnaryOp = *sig(*Integer) void
+def BinOp = *sig(*Integer, *Integer, *Integer) void
+def MemoryOp = *sig(*void) void
+def ControlOp = *sig(u32) void
 
-// Вызов пользовательской функции
-// push IP, аллокация ret и локальных переменных
-pub def call = 0x00 as *sig(*void, u8) void
+// Примитивы управления программой
+pub def exit = 0x00 as ControlOp           // Завершение программы
+pub def call = 0x01 as *sig(*void, u8) void // Вызов функции
+pub def ret = 0x02 as *sig() void          // Возврат из функции
 
-// restore IP, освободить стек
-pub def ret = 0x00 as *sig() void
+// Примитивы работы со стеком и памятью
+pub def push_address = 0x10 as MemoryOp    // Положить адрес на стек
+pub def push_var = 0x11 as *sig(*Integer) void // Положить значение переменной
+pub def push_const = 0x12 as *sig(Integer) void // Положить константу
+pub def pop_in = 0x13 as *sig(*Integer) void   // Извлечь в переменную
+pub def store = 0x14 as *sig(*Integer, Integer) void // Сохранить по адресу
+pub def copy = 0x15 as *sig(*Integer, *Integer) void // Копировать переменные
 
-// *SP = *source
-// Положить на стек адрес переменной
-pub def push_address = 0x00 as *sig(*void) void
-
-// *SP = *source
-// Положить на стек значение переменной
-pub def push_var = 0x00 as *sig(*Integer) void
-
-// SP = source
-// Положить на стек константу
-pub def push_const = 0x00 as *sig(Integer) void
-
-// *dest = pop()
-// Выложить со стека в переменную
-pub def pop_in = 0x00 as *sig(*Integer) void
-
-// *target = value
-// Загрузить по адресу константу
-pub def store = 0x00 as *sig(*Integer, Integer) void
-
-// *target = *source
-// Копирование переменных
-pub def copy = 0x00 as *sig(*Integer, *Integer) void
+// Базовые арифметические операции (нативные)
+pub def add = 0x20 as BinOp      // *ret = *a + *b
+pub def sub = 0x21 as BinOp      // *ret = *a - *b
+pub def mul = 0x22 as BinOp      // *ret = *a * *b
+pub def div = 0x23 as BinOp      // *ret = *a / *b
+pub def inc = 0x24 as UnaryOp    // *ret = *ret + 1
+pub def dec = 0x25 as UnaryOp    // *ret = *ret - 1
 
 
-//!math.bl
-// Пользовательский модуль "Регистровая математика"
+//!sketch.miz
+// Пример использования возможностей языка
 
-def core = import("core.bl")
-
-// Сигнатура нативной функции для унарной операции
-def UnaryOp = *sig(*core.Integer) void
-
-// Сигнатура нативной функции для бинарной операции
-def BinOp = *sig(*core.Integer, *core.Integer, *core.Integer) void
-
-def native_index_base = 0x10
-
-// Сложение
-// *ret = *a + *b
-pub def add = (native_index_base + 0) as BinOp
-
-// Вычитание
-// *ret = *a - *b
-pub def sub = (native_index_base + 1) as BinOp
-
-// Умножение
-// *ret = *a * *b
-pub def mul = (native_index_base + 2) as BinOp
-
-// Деление
-// *ret = *a / *b
-pub def div = (native_index_base + 3) as BinOp
-
-// Инкремент
-// *ret = *ret + 1
-pub def inc = (native_index_base + 4) as UnaryOp
-
-// Декремент
-// *ret = *ret - 1
-pub def dec = (native_index_base + 5) as UnaryOp
-
-
-//! sketch.bl
-// Пользовательский скетч
-
-// def - объявление символа
-
-// Импорт - создание символа с значением модуля (import <path> -> структура)
-def math = import("math.bl")
-
-// Compile-time Загрузка внешних данных - создание символа с значением load <path>
-def data = load("foo_data.bin")
-
-// Type-Alias
-
+// Определение типов
 def str = []u8
 
-// Простая структура
-def User = struct {
-    // Имеет неявный символ def Self = <this-type>
-
-    // Поля
-
-    // Публичное поле
-    pub name: str,
-
-    // Приватное поле
-    age: i32,
-
-    // Статические члены структуры
-
-    // Статическая переменная структуры
-    var static_variable: i32 = 0,
-
-    // Методы
-
-    def init(self: *Self, name: str) void {
-        self.name = name
-        self.age = 0
-    },
-
-    // Метод экземпляра
-    def getAge = fn(self: *Self) i32 {
-        return self.age
-    },
-}
-
-// Generic структура
+// Дженерик-структура
 def Vector2 = fn(T: type) type {
     return struct {
         def Scalar = T,
-
         x: Scalar, y: Scalar,
     }
 }
 
-// Создание символа конкретной структуры
-
+// Конкретизация дженерика
 def Vector2i = Vector2(i32)
 
-var global_uninitialized_primitive: i32 = undefined
+// Структура с методами
+def User = struct {
+    // Поля
+    pub name: str,
+    age: i32,
 
-// Соглашение: компилятор имеет параметр <start-function> = main
-// Запуск программы:
-// core.call(main, <main-stack-size>)
-// core.exit(0)
+    // Статическое поле
+    var static_count: i32 = 0,
 
-var global_struct: Vector2i = {
-    123,
-    456
+    // Методы
+    def init(self: *Self, name: str) void {
+        self.name = name
+        self.age = 0
+        // Использование нативной операции напрямую
+        var count_ptr: *i32 = &Self.static_count
+        core.inc(count_ptr)
+    },
+
+    def get_age = fn(self: *Self) i32 {
+        return self.age
+    },
+
+    def celebrate_birthday = fn(self: *Self) void {
+        core.inc(&self.age)
+    }
 }
 
-pub var global_uninitialized_struct: Vector2i = undefined
+// Глобальные переменные
+var global_counter: i32 = 0
+var global_vector: Vector2i = { x: 100, y: 200 }
+var global_user: User = undefined
 
-// Некоторая пользовательская нативная инструкция для симуляции ввода
-def input = cast(*fn()i32, 0x67)
+// Нативная функция ввода (симуляция)
+def input = cast(*fn() i32, 0x67)
 
-// Публичная пользовательская функция
-// stack_alloc: sizeof(i32) + sizeof(i32) = 4 + 4 = 8
-pub def foo = fn(x: i32, vec: *Vector2i) i32 {
-    return input() + x + vex.x + vex.y
+// Публичная функция с низкоуровневым управлением
+pub def lowlevel_calculate = fn(a: i32, b: *Vector2i) i32 {
+    var temp: i32 = undefined
+    var result: i32 = undefined
+
+    // Низкоуровневые операции через ядро
+    core.push_const(a)
+    core.push_const(b.x)
+    core.call(core.add, 8)
+    core.pop_in(&temp)
+
+    core.push_const(temp)
+    core.push_const(b.y)
+    core.call(core.add, 8)
+    core.pop_in(&result)
+
+    return result
 }
 
-// Точка входа
+// Функция с высокоуровневым синтаксисом
+pub def highlevel_calculate = fn(a: i32, b: Vector2i) i32 {
+    // Компилятор транслирует это в вызовы ядра
+    return a + b.x + b.y
+}
+
+// Точка входа программы
 def main = fn() void {
-    // runtime инициализация
-    global_uninitialized_primitive = 123456
-    global_uninitialized_struct = { foo(input(), &global_struct), input() }
-    // Неявный return
+    // Инициализация структуры
+    global_user.init("Alice")
+
+    // Работа с локальными переменными
+    var local_vec: Vector2i = { x: 10, y: 20 }
+    var result: i32 = 0
+
+    // Использование разных стилей программирования
+    result = lowlevel_calculate(5, &local_vec)
+
+    // Высокоуровневый вариант
+    result = highlevel_calculate(5, local_vec)
+
+    // Обновление глобальной переменной
+    core.add(&global_counter, &result, &global_counter)
+
+    // Вызов метода
+    global_user.celebrate_birthday()
 }

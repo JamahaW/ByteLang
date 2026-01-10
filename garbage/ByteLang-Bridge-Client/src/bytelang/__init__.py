@@ -1,3 +1,0 @@
-"""
-Serial Command Protocol
-"""

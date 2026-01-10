@@ -1,5 +1,0 @@
-# тестовый пакет
-
-.inst pinMode(pin: u8, mode: u8)
-.inst digitalWrite(pin: u8, state: u8)
-.inst digitalRead(pin: u8, ret: *u8)

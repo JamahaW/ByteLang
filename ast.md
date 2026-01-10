@@ -1,3 +1,3 @@
 # AST
 
-see [_ast.py](ByteLang-By/src/bytelang/_ast.py)
+see [_ast.py](MizLang-Py/src/miz/_ast.py)
