@@ -4,46 +4,45 @@
 """
 Defined operators
 """
+from enum import Enum, auto
 
-from enum import StrEnum
 
-
-class UnaryOp(StrEnum):
+class UnaryOp(Enum):
     """Unary operators"""
-    positive = "+"
-    negative = "-"
-    star = "*"
-    address_of = "&"
-    logical_not = "not"
+    positive = auto()
+    negative = auto()
+    star = auto()
+    address_of = auto()
+    logical_not = auto()
 
 
-class BinaryOp(StrEnum):
+class BinaryOp(Enum):
     """Binary operators"""
     # type cast
-    type_cast = "as"
+    type_cast = auto()
 
     # Arithmetic
-    add = "+"
-    sub = "-"
-    mul = "*"
-    div = "/"
-    mod = "%"
+    add = auto()
+    sub = auto()
+    mul = auto()
+    div = auto()
+    mod = auto()
 
     # Bitwise
-    bitwise_and = "&"
-    bitwise_or = "|"
-    bitwise_xor = "^"
-    shift_left = "<<"
-    shift_right = ">>"
+    bitwise_and = auto()
+    bitwise_or = auto()
+    bitwise_xor = auto()
+    shift_left = auto()
+    shift_right = auto()
 
     # Comparison
-    equal = "=="
-    not_equal = "!="
-    less = "<"
-    greater = ">"
-    less_equal = "<="
-    greater_equal = ">="
+    equal = auto()
+    not_equal = auto()
+    less = auto()
+    greater = auto()
+    less_equal = auto()
+    greater_equal = auto()
 
     # Logical
-    logical_and = "and"
-    logical_or = "or"
+    logical_and = auto()
+    logical_or = auto()

@@ -7,5 +7,4 @@ MizLang
 
 from miz._lexer import Lexer
 from miz._parser import Parser
-from miz._token import Token
-from miz._token import TokenType
+from miz._token import Token, TokenType

@@ -8,54 +8,21 @@ MizLang Parser with Pratt parsing
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable
-from typing import Final
-from typing import Optional
-from typing import Sequence
+from typing import Callable, ClassVar, Final, Mapping, Optional, Sequence
 
-from miz._ast import ArrayType
-from miz._ast import AssignStatement
-from miz._ast import BinaryExpression
-from miz._ast import BinaryOp
-from miz._ast import Block
-from miz._ast import BreakStatement
-from miz._ast import CallExpression
-from miz._ast import ContinueStatement
-from miz._ast import Declaration
-from miz._ast import Expression
-from miz._ast import Field
-from miz._ast import FunctionSignature
-from miz._ast import FunctionType
-from miz._ast import Identifier
-from miz._ast import IfStatement
-from miz._ast import IndexExpression
-from miz._ast import IntegerLiteral
-from miz._ast import ListLiteral
-from miz._ast import LoopStatement
-from miz._ast import MemberExpression
-from miz._ast import Public
-from miz._ast import RealLiteral
-from miz._ast import ReturnStatement
-from miz._ast import SliceType
-from miz._ast import Statement
-from miz._ast import StringLiteral
-from miz._ast import StructType
-from miz._ast import Symbol
-from miz._ast import UnaryExpression
-from miz._ast import UnaryOp
-from miz._ast import UndefinedLiteral
-from miz._ast import Variable
+from miz._ast import (
+    ArrayType, AssignStatement, BinaryExpression, Block, BreakStatement, CallExpression, ContinueStatement, Declaration, Expression, Field, FunctionSignature,
+    FunctionType, Identifier, IfStatement, IndexExpression, IntegerLiteral, ListLiteral, LoopStatement, MemberExpression, Public, RealLiteral, ReturnStatement,
+    SliceType, Statement, StringLiteral, StructType, Symbol, UnaryExpression, UndefinedLiteral, Variable)
 from miz._stream import OutputStream
-from miz._token import SourcePosition
-from miz._token import Token
-from miz._token import TokenType
+from miz._token import Token, TokenType
 
 
 @dataclass(frozen=True)
 class ParseError:
     """Parsing error with context"""
     message: str
-    token: Optional[Token]
+    token: Token
 
     def __str__(self):
         return f"{self.message}: {self.token}"
@@ -64,14 +31,88 @@ class ParseError:
 class Parser:
     """MizLang parser with Pratt parsing"""
 
-    def __init__(self, tokens: Sequence[Token]) -> None:
-        self._tokens = OutputStream(tokens)
-        self._errors: Final[list[ParseError]] = list()
+    _binary_op_table: ClassVar = TokenType.build_binary_operator_map()
+    _binary_op_precedence_table: ClassVar = TokenType.build_precedence()
+    _binary_op_precedence_max: ClassVar = max(_binary_op_precedence_table.values())
 
-        # Precedence table (higher = tighter binding)
-        self._precedence = self._build_precedence()
-        self._prefix_parsers = self._build_prefix_parsers()
-        self._infix_parsers = self._build_infix_parsers()
+    _unary_op_precedence: ClassVar = _binary_op_precedence_max + 1  # Higher than any binary operator
+    _unary_op_table: ClassVar = TokenType.build_unary_operator_map()
+
+    def __init__(self, tokens: Sequence[Token]) -> None:
+        self._tokens: Final = OutputStream(tokens)
+        self._errors: Final = list[ParseError]()
+
+        self._prefix_parsers: Final[Mapping[TokenType, Callable[[Token], Optional[Expression]]]] = {
+            # Literals
+            TokenType.identifier: self.identifier_expression,
+            TokenType.string: self.string_literal,
+            TokenType.keyword_undefined: self.undefined_literal,
+
+            # Grouping
+            TokenType.paren_open: self.grouped_expression,
+            TokenType.brace_open: self.list_literal,
+            TokenType.bracket_open: self.array_or_slice,
+
+            # Unary operators
+            TokenType.plus: self.unary_operator,
+            TokenType.minus: self.unary_operator,
+            TokenType.star: self.unary_operator,
+            TokenType.ampersand: self.unary_operator,
+            TokenType.logical_not: self.unary_operator,
+
+            # Type expressions
+            TokenType.keyword_fn: self.function_type,
+            TokenType.keyword_sig: self.function_signature,
+            TokenType.keyword_struct: self.struct_type,
+        }
+        """Prefix parser dispatch table"""
+
+        self._infix_parsers: Final[Mapping[TokenType, Callable[[Expression], Optional[Expression]]]] = {
+            # Binary operators
+            TokenType.plus: self.binary_operator,
+            TokenType.minus: self.binary_operator,
+            TokenType.star: self.binary_operator,
+            TokenType.slash: self.binary_operator,
+            TokenType.percent: self.binary_operator,
+            TokenType.equal: self.binary_operator,
+            TokenType.not_equal: self.binary_operator,
+            TokenType.less: self.binary_operator,
+            TokenType.greater: self.binary_operator,
+            TokenType.less_equal: self.binary_operator,
+            TokenType.greater_equal: self.binary_operator,
+            TokenType.shift_left: self.binary_operator,
+            TokenType.shift_right: self.binary_operator,
+            TokenType.ampersand: self.binary_operator,
+            TokenType.pipe: self.binary_operator,
+            TokenType.caret: self.binary_operator,
+            TokenType.logical_and: self.binary_operator,
+            TokenType.logical_or: self.binary_operator,
+            TokenType.type_cast: self.binary_operator,
+
+            # Postfix operators
+            TokenType.dot: self.member_access,
+            TokenType.paren_open: self.call_expression,
+            TokenType.bracket_open: self.index_expression,
+        }
+        """Infix parser dispatch table"""
+
+        self._declaration_parsers: Final[Mapping[TokenType, Callable[[], Optional[Declaration]]]] = {
+            TokenType.keyword_pub: self.public_declaration,
+            TokenType.keyword_def: self.symbol_declaration,
+            TokenType.keyword_var: self.variable_declaration,
+        }
+        """Declaration parser dispatch table"""
+
+        self._statement_parsers: Final[Mapping[TokenType, Callable[[], Optional[Statement]]]] = {
+            TokenType.keyword_def: self.symbol_declaration,
+            TokenType.keyword_var: self.variable_declaration,
+            TokenType.keyword_return: self.return_statement,
+            TokenType.keyword_break: self.break_statement,
+            TokenType.keyword_continue: self.continue_statement,
+            TokenType.keyword_loop: self.loop_statement,
+            TokenType.keyword_if: self.if_statement,
+        }
+        """Statement parser dispatch table"""
 
     def errors(self) -> Sequence[ParseError]:
         """Get parsing errors"""
@@ -79,139 +120,24 @@ class Parser:
 
     #  public api
 
-    def parse_module(self) -> Optional[StructType]:
+    def module(self) -> Optional[StructType]:
         """Parse entire module/file"""
         self._skip_newlines()
 
-        first_token = self._tokens.peek()
-        if not first_token:
-            # Empty module
-            return StructType(
-                Token(token_type=TokenType.identifier, value="module",
-                      source_position=SourcePosition("", 0, 1, 1)),
-                ()
-            )
+        token = self._tokens.peek()
+        if token is None:
+            return StructType(Token.dummy(), ())  # Empty module
 
         declarations = self._parse_declaration_block(None, allow_commas=False)
         if declarations is None:
             return None
 
-        return StructType(first_token, declarations)
+        return StructType(token, declarations)
 
-    def parse_expression(self) -> Optional[Expression]:
+    #  expression parsers
+
+    def expression(self, min_precedence: int = 0) -> Optional[Expression]:
         """Parse expression with Pratt parser"""
-        return self._parse_expression()
-
-    def parse_statement(self) -> Optional[Statement]:
-        """Parse a statement"""
-        return self._parse_statement()
-
-    def parse_declaration(self) -> Optional[Declaration]:
-        """Parse a declaration"""
-        return self._parse_declaration()
-
-    #  pratt parser core
-
-    # todo move to TokenType
-    @staticmethod
-    def _build_precedence() -> dict[TokenType, int]:
-        """Build operator precedence table"""
-        return {
-            # Logical (lowest)
-            TokenType.logical_or: 1,
-            TokenType.logical_and: 2,
-
-            # Comparison
-            TokenType.equal: 3,
-            TokenType.not_equal: 3,
-            TokenType.less: 3,
-            TokenType.greater: 3,
-            TokenType.less_equal: 3,
-            TokenType.greater_equal: 3,
-
-            # Bitwise
-            TokenType.pipe: 4,
-            TokenType.caret: 5,
-            TokenType.ampersand: 6,
-            TokenType.shift_left: 7,
-            TokenType.shift_right: 7,
-
-            # Additive
-            TokenType.plus: 8,
-            TokenType.minus: 8,
-
-            # Multiplicative
-            TokenType.star: 9,
-            TokenType.slash: 9,
-            TokenType.percent: 9,
-
-            # Postfix
-            TokenType.dot: 10,
-            TokenType.bracket_open: 10,
-            TokenType.paren_open: 10,
-
-            # type cast
-            TokenType.type_cast: 11,
-        }
-
-    def _build_prefix_parsers(self) -> dict[TokenType, Callable[[Token], Optional[Expression]]]:
-        """Build prefix parser dispatch table"""
-        return {
-            # Literals
-            TokenType.identifier: self._parse_identifier_expression,
-            TokenType.string: self._parse_string_literal,
-            TokenType.keyword_undefined: self._parse_undefined_literal,
-
-            # Grouping
-            TokenType.paren_open: self._parse_grouped_expression,
-            TokenType.brace_open: self._parse_list_literal,
-            TokenType.bracket_open: self._parse_array_or_slice,
-
-            # Unary operators
-            TokenType.plus: self._parse_unary_operator,
-            TokenType.minus: self._parse_unary_operator,
-            TokenType.star: self._parse_unary_operator,
-            TokenType.ampersand: self._parse_unary_operator,
-            TokenType.logical_not: self._parse_unary_operator,
-
-            # Type expressions
-            TokenType.keyword_fn: self._parse_function_type,
-            TokenType.keyword_sig: self._parse_function_signature,
-            TokenType.keyword_struct: self._parse_struct_type,
-        }
-
-    def _build_infix_parsers(self) -> dict[TokenType, Callable[[Expression], Optional[Expression]]]:
-        """Build infix parser dispatch table"""
-        return {
-            # Binary operators
-            TokenType.plus: self._parse_binary_operator,
-            TokenType.minus: self._parse_binary_operator,
-            TokenType.star: self._parse_binary_operator,
-            TokenType.slash: self._parse_binary_operator,
-            TokenType.percent: self._parse_binary_operator,
-            TokenType.equal: self._parse_binary_operator,
-            TokenType.not_equal: self._parse_binary_operator,
-            TokenType.less: self._parse_binary_operator,
-            TokenType.greater: self._parse_binary_operator,
-            TokenType.less_equal: self._parse_binary_operator,
-            TokenType.greater_equal: self._parse_binary_operator,
-            TokenType.shift_left: self._parse_binary_operator,
-            TokenType.shift_right: self._parse_binary_operator,
-            TokenType.ampersand: self._parse_binary_operator,
-            TokenType.pipe: self._parse_binary_operator,
-            TokenType.caret: self._parse_binary_operator,
-            TokenType.logical_and: self._parse_binary_operator,
-            TokenType.logical_or: self._parse_binary_operator,
-            TokenType.type_cast: self._parse_binary_operator,
-
-            # Postfix operators
-            TokenType.dot: self._parse_member_access,
-            TokenType.paren_open: self._parse_call_expression,
-            TokenType.bracket_open: self._parse_index_expression,
-        }
-
-    def _parse_expression(self, min_precedence: int = 0) -> Optional[Expression]:
-        """Pratt parser core"""
         token = self._tokens.peek()
         if not token:
             self._error("Unexpected EOF in expression")
@@ -222,9 +148,9 @@ class Parser:
         if not prefix_parser:
             # Handle literals not in prefix table
             if token.type in TokenType.integer_types():
-                left = self._parse_integer_literal()
+                left = self.integer_literal()
             elif token.type in TokenType.real_types():
-                left = self._parse_real_literal()
+                left = self.real_literal()
             else:
                 self._error(f"Unexpected token in expression: {token.type}")
                 return None
@@ -241,8 +167,7 @@ class Parser:
                 break
 
             # Get precedence of current operator
-            precedence = self._get_precedence(token)
-            if precedence < min_precedence:
+            if self._binary_op_precedence_table.get(token.type, 0) < min_precedence:
                 break
 
             # Get infix parser for this operator
@@ -256,26 +181,16 @@ class Parser:
 
         return left
 
-    #  expression parsers
-
-    def _parse_identifier_expression(self, token: Token) -> Optional[Expression]:
+    def identifier_expression(self, token: Token) -> Optional[Expression]:
         """Parse identifier as expression"""
         # Regular identifier - consume and return
         self._tokens.next()
         return Identifier(token, token.value)
 
-    def _parse_unary_operator(self, token: Token) -> Optional[UnaryExpression]:
+    def unary_operator(self, token: Token) -> Optional[UnaryExpression]:
         """Parse unary operator"""
         # Map token type to operator
-        op_map = {
-            TokenType.plus: UnaryOp.positive,
-            TokenType.minus: UnaryOp.negative,
-            TokenType.star: UnaryOp.star,
-            TokenType.ampersand: UnaryOp.address_of,
-            TokenType.logical_not: UnaryOp.logical_not,
-        }
-
-        operator = op_map.get(token.type)
+        operator = self._unary_op_table.get(token.type)
         if not operator:
             self._error(f"Invalid unary operator: {token.type}")
             return None
@@ -283,95 +198,64 @@ class Parser:
         self._tokens.next()  # Consume operator
 
         # Unary operators have high precedence (right-associative)
-        operand = self._parse_expression(10)  # Higher than any binary operator
+        operand = self.expression(self._unary_op_precedence)
         if operand is None:
             return None
 
         return UnaryExpression(token, operator, operand)
 
-    def _parse_binary_operator(self, left: Expression) -> Optional[BinaryExpression]:
+    def binary_operator(self, left: Expression) -> Optional[BinaryExpression]:
         """Parse binary operator"""
         token = self._tokens.peek()
         if not token:
             return None
 
         # Map token type to operator
-        op_map = {
-            TokenType.plus: BinaryOp.add,
-            TokenType.minus: BinaryOp.sub,
-            TokenType.star: BinaryOp.mul,
-            TokenType.slash: BinaryOp.div,
-            TokenType.percent: BinaryOp.mod,
-            TokenType.ampersand: BinaryOp.bitwise_and,
-            TokenType.pipe: BinaryOp.bitwise_or,
-            TokenType.caret: BinaryOp.bitwise_xor,
-            TokenType.shift_left: BinaryOp.shift_left,
-            TokenType.shift_right: BinaryOp.shift_right,
-            TokenType.equal: BinaryOp.equal,
-            TokenType.not_equal: BinaryOp.not_equal,
-            TokenType.less: BinaryOp.less,
-            TokenType.greater: BinaryOp.greater,
-            TokenType.less_equal: BinaryOp.less_equal,
-            TokenType.greater_equal: BinaryOp.greater_equal,
-            TokenType.logical_and: BinaryOp.logical_and,
-            TokenType.logical_or: BinaryOp.logical_or,
-            TokenType.type_cast: BinaryOp.type_cast,
-        }
-
-        operator = op_map.get(token.type)
+        operator = self._binary_op_table.get(token.type)
         if not operator:
             return None
 
-        precedence = self._precedence.get(token.type, 0)
+        precedence = self._binary_op_precedence_table.get(token.type, 0)
         self._tokens.next()  # Consume operator
 
         # For left-associative operators, use precedence + 1
         # For right-associative, use precedence
         # All our binary operators are left-associative
-        right = self._parse_expression(precedence + 1)
+        right = self.expression(precedence + 1)
         if right is None:
             return None
 
         return BinaryExpression(token, operator, left, right)
 
-    def _parse_member_access(self, left: Expression) -> Optional[MemberExpression]:
-        """Parse member access: object.member"""
-        dot_token = self._tokens.next()  # Consume '.'
+    def member_access(self, left: Expression) -> Optional[MemberExpression]:
+        """Parse member access: `object.member`"""
+        token = self._tokens.next()  # Consume '.'
 
-        identifier = self._parse_identifier()
+        identifier = self.identifier()
         if identifier is None:
             self._error("Expected identifier after '.'")
             return None
 
-        return MemberExpression(dot_token, left, identifier)
+        return MemberExpression(token, left, identifier)
 
-    def _parse_call_expression(self, callee: Expression) -> Optional[CallExpression]:
+    def call_expression(self, callee: Expression) -> Optional[CallExpression]:
         """Parse function call: callee(arguments)"""
         open_token = self._tokens.peek()  # Peek '(' but don't consume yet
 
-        # Save position in case this is not a call
-        self._tokens.push_position()
+        self._tokens.push_position()  # Save position in case this is not a call
 
-        # Try to parse as function call
-        arguments = self._parse_comma_separated(
-            TokenType.paren_open,
-            TokenType.paren_close,
-            self._parse_expression
-        )
-
+        arguments = self._parse_comma_separated(TokenType.paren_open, TokenType.paren_close, self.expression)  # Try to parse as function call
         if arguments is None:
-            # Not a function call, restore position
-            self._tokens.pop_position()
+            self._tokens.pop_position()  # Not a function call, restore position
             return None
 
-        # Successfully parsed as function call
-        return CallExpression(open_token, callee, arguments)
+        return CallExpression(open_token, callee, arguments)  # Successfully parsed as function call
 
-    def _parse_index_expression(self, container: Expression) -> Optional[IndexExpression]:
+    def index_expression(self, container: Expression) -> Optional[IndexExpression]:
         """Parse index access: container[index]"""
         open_token = self._tokens.next()  # Consume '['
 
-        index = self._parse_expression()
+        index = self.expression()
         if index is None:
             return None
 
@@ -380,11 +264,11 @@ class Parser:
 
         return IndexExpression(open_token, container, index)
 
-    def _parse_grouped_expression(self, token: Token) -> Optional[Expression]:
+    def grouped_expression(self, _: Token) -> Optional[Expression]:
         """Parse (expression)"""
         self._tokens.next()  # Consume '('
 
-        expr = self._parse_expression()
+        expr = self.expression()
         if expr is None:
             return None
 
@@ -393,126 +277,111 @@ class Parser:
 
         return expr
 
-    def _parse_array_or_slice(self, token: Token) -> Optional[ArrayType | SliceType]:
+    def array_or_slice(self, token: Token) -> Optional[ArrayType | SliceType]:
         """Parse [size]type or []type"""
         self._tokens.next()  # Consume '['
 
         # Check for slice []
         if self._tokens.peek() and self._tokens.peek().type == TokenType.bracket_close:
             self._tokens.next()  # Consume ']'
-            element_type = self._parse_expression()
+            element_type = self.expression()
             if element_type is None:
                 return None
             return SliceType(token, element_type)
 
         # Array with size [size]type
-        size = self._parse_expression()
+        size = self.expression()
         if size is None:
             return None
 
         if not self._consume(TokenType.bracket_close):
             return None
 
-        element_type = self._parse_expression()
+        element_type = self.expression()
         if element_type is None:
             return None
 
         return ArrayType(token, size, element_type)
 
-    def _parse_list_literal(self, token: Token) -> Optional[ListLiteral]:
+    #  literal parsers
+
+    def list_literal(self, token: Token) -> Optional[ListLiteral]:
         """Parse list literal {value, ...}"""
-        # # Consume '{' in _parse_comma_separated
-        values = self._parse_comma_separated(
-            TokenType.brace_open,
-            TokenType.brace_close,
-            self._parse_expression
-        )
+        # Consume `{` in _parse_comma_separated
+        values = self._parse_comma_separated(TokenType.brace_open, TokenType.brace_close, self.expression)
         if values is None:
             return None
         return ListLiteral(token, values)
 
-    #  literal parsers
-
-    def _parse_identifier(self) -> Optional[Identifier]:
+    def identifier(self) -> Optional[Identifier]:
         """Parse identifier"""
         token = self._consume(TokenType.identifier)
         if token is None:
             return None
         return Identifier(token, token.value)
 
-    def _parse_integer_literal(self) -> Optional[IntegerLiteral]:
+    def integer_literal(self) -> Optional[IntegerLiteral]:
         """Parse integer literal"""
         token = self._consume_set(TokenType.integer_types())
         if token is None:
             return None
         return IntegerLiteral(token, token.value)
 
-    def _parse_real_literal(self) -> Optional[RealLiteral]:
+    def real_literal(self) -> Optional[RealLiteral]:
         """Parse real literal"""
         token = self._consume_set(TokenType.real_types())
         if token is None:
             return None
         return RealLiteral(token, token.value)
 
-    def _parse_string_literal(self, token: Token) -> Optional[StringLiteral]:
+    def string_literal(self, token: Token) -> Optional[StringLiteral]:
         """Parse string literal"""
         self._tokens.next()  # Consume string token
         return StringLiteral(token, token.value)
 
-    def _parse_undefined_literal(self, token: Token) -> Optional[UndefinedLiteral]:
+    #  type parsers
+
+    def undefined_literal(self, token: Token) -> Optional[UndefinedLiteral]:
         """Parse undefined literal"""
         self._tokens.next()  # Consume 'undefined' keyword
         return UndefinedLiteral(token)
 
-    #  type parsers
-
-    def _parse_function_signature(self, token: Token) -> Optional[FunctionSignature]:
+    def function_signature(self, token: Token) -> Optional[FunctionSignature]:
         """Parse function signature (params) return_type"""
-        # token is the 'sig' keyword token
         self._tokens.next()  # Consume 'sig'
 
-        parameters = self._parse_comma_separated(
-            TokenType.paren_open,
-            TokenType.paren_close,
-            self._parse_expression
-        )
-
+        parameters = self._parse_comma_separated(TokenType.paren_open, TokenType.paren_close, self.expression)
         if parameters is None:
             return None
 
-        return_type = self._parse_expression()
+        return_type = self.expression()
         if return_type is None:
             return None
 
         return FunctionSignature(token, parameters, return_type)
 
-    def _parse_function_type(self, token: Token) -> Optional[FunctionType]:
+    def function_type(self, token: Token) -> Optional[FunctionType]:
         """Parse function type"""
-        # token is the 'fn' keyword token
         self._tokens.next()  # Consume 'fn'
 
-        parameters = self._parse_comma_separated(
-            TokenType.paren_open,
-            TokenType.paren_close,
-            self._parse_field
-        )
-
+        parameters = self._parse_comma_separated(TokenType.paren_open, TokenType.paren_close, self.field)
         if parameters is None:
             return None
 
-        return_type = self._parse_expression()
+        return_type = self.expression()
         if return_type is None:
             return None
 
-        body = self._parse_block()
+        body = self.block_statement()
         if body is None:
             return None
 
         return FunctionType(token, parameters, return_type, body)
 
-    def _parse_struct_type(self, token: Token) -> Optional[StructType]:
+    #  statement parsers
+
+    def struct_type(self, token: Token) -> Optional[StructType]:
         """Parse struct type"""
-        # token is the 'struct' keyword token
         self._tokens.next()  # Consume 'struct'
 
         self._skip_newlines()
@@ -529,9 +398,7 @@ class Parser:
 
         return StructType(token, declarations)
 
-    #  statement parsers
-
-    def _parse_statement(self) -> Optional[Statement]:
+    def statement(self) -> Optional[Statement]:
         """Parse a statement"""
         self._skip_newlines()
 
@@ -540,36 +407,22 @@ class Parser:
             self._error("Unexpected EOF in statement")
             return None
 
-        # Keyword statements
-        if token.type == TokenType.keyword_def:
-            return self._parse_symbol_declaration()
-        if token.type == TokenType.keyword_var:
-            return self._parse_variable_declaration()
-        if token.type == TokenType.keyword_return:
-            return self._parse_return_statement()
-        if token.type == TokenType.keyword_break:
-            return self._parse_break_statement()
-        if token.type == TokenType.keyword_continue:
-            return self._parse_continue_statement()
-        if token.type == TokenType.keyword_loop:
-            return self._parse_loop_statement()
-        if token.type == TokenType.keyword_if:
-            return self._parse_if_statement()
+        statement_parser = self._statement_parsers.get(token.type)
+        if statement_parser is None:
+            return self.expression_statement()  # Expression statements (assignment or function call)
+        else:
+            return statement_parser()
 
-        # Expression statements (assignment or function call)
-        return self._parse_expression_statement()
-
-    def _parse_expression_statement(self) -> Optional[Statement]:
+    def expression_statement(self) -> Optional[Statement]:
         """Parse expression as statement (assignment or call)"""
-        expr = self._parse_expression()
+        expr = self.expression()
         if expr is None:
             return None
 
         # Check for assignment
         if self._tokens.peek() and self._tokens.peek().type == TokenType.assign:
-            # It's an assignment
             self._tokens.next()  # Consume '='
-            right = self._parse_expression()
+            right = self.expression()
 
             if right is None:
                 return None
@@ -583,55 +436,48 @@ class Parser:
 
         return expr  # CallExpression is both Expression and Statement
 
-    def _parse_symbol_declaration(self) -> Optional[Symbol]:
+    def symbol_declaration(self) -> Optional[Symbol]:
         """Parse symbol declaration: def name = value"""
-        def_token = self._consume(TokenType.keyword_def)
-        if def_token is None:
+        token = self._consume(TokenType.keyword_def)
+        if token is None:
             return None
 
-        name = self._parse_identifier()
+        name = self.identifier()
         if name is None:
             return None
 
         if not self._consume(TokenType.assign):
             return None
 
-        value = self._parse_expression()
+        value = self.expression()
         if value is None:
             return None
 
-        return Symbol(def_token, name, value)
+        return Symbol(token, name, value)
 
-    def _parse_variable_declaration(self) -> Optional[Variable]:
-        """Parse variable declaration: var name: type = value"""
-        var_token = self._consume(TokenType.keyword_var)
-        if var_token is None:
+    def variable_declaration(self) -> Optional[Variable]:
+        """Parse variable declaration"""
+        token = self._consume(TokenType.keyword_var)
+        if token is None:
             return None
 
-        name = self._parse_identifier()
-        if name is None:
-            return None
-
-        if not self._consume(TokenType.colon):
-            return None
-
-        type_expr = self._parse_expression()
-        if type_expr is None:
+        field = self.field()
+        if field is None:
             return None
 
         if not self._consume(TokenType.assign):
             return None
 
-        value = self._parse_expression()
+        value = self.expression()
         if value is None:
             return None
 
-        return Variable(var_token, name, type_expr, value)
+        return Variable(token, field, value)
 
-    def _parse_return_statement(self) -> Optional[ReturnStatement]:
+    def return_statement(self) -> Optional[ReturnStatement]:
         """Parse return statement"""
-        return_token = self._consume(TokenType.keyword_return)
-        if return_token is None:
+        token = self._consume(TokenType.keyword_return)
+        if token is None:
             return None
 
         self._skip_newlines()
@@ -639,51 +485,53 @@ class Parser:
         # Check for optional value
         token = self._tokens.peek()
         if not token or token.type in {TokenType.newline, TokenType.brace_close}:
-            return ReturnStatement(return_token, None)
+            return ReturnStatement(token, None)
 
-        value = self._parse_expression()
+        value = self.expression()
         if value is None:
             return None
 
-        return ReturnStatement(return_token, value)
+        return ReturnStatement(token, value)
 
-    def _parse_break_statement(self) -> Optional[BreakStatement]:
+    def break_statement(self) -> Optional[BreakStatement]:
         """Parse break statement"""
         token = self._consume(TokenType.keyword_break)
         if token is None:
             return None
         return BreakStatement(token)
 
-    def _parse_continue_statement(self) -> Optional[ContinueStatement]:
+    def continue_statement(self) -> Optional[ContinueStatement]:
         """Parse continue statement"""
         token = self._consume(TokenType.keyword_continue)
         if token is None:
             return None
         return ContinueStatement(token)
 
-    def _parse_loop_statement(self) -> Optional[LoopStatement]:
+    def loop_statement(self) -> Optional[LoopStatement]:
         """Parse loop statement"""
         loop_token = self._consume(TokenType.keyword_loop)
         if loop_token is None:
             return None
 
-        body = self._parse_block()
+        body = self.block_statement()
         if body is None:
             return None
 
         return LoopStatement(loop_token, body)
 
-    def _parse_if_statement(self) -> Optional[IfStatement]:
+    #  declaration parsing
+
+    def if_statement(self) -> Optional[IfStatement]:
         """Parse if statement"""
-        if_token = self._consume(TokenType.keyword_if)
-        if if_token is None:
+        token = self._consume(TokenType.keyword_if)
+        if token is None:
             return None
 
-        condition = self._parse_expression()
+        condition = self.expression()
         if condition is None:
             return None
 
-        then_branch = self._parse_block()
+        then_branch = self.block_statement()
         if then_branch is None:
             return None
 
@@ -693,15 +541,13 @@ class Parser:
 
         if self._tokens.peek() and self._tokens.peek().type == TokenType.keyword_else:
             self._tokens.next()  # Consume 'else'
-            else_branch = self._parse_block()
+            else_branch = self.block_statement()
             if else_branch is None:
                 return None
 
-        return IfStatement(if_token, condition, then_branch, else_branch)
+        return IfStatement(token, condition, then_branch, else_branch)
 
-    #  declaration parsing
-
-    def _parse_declaration(self) -> Optional[Declaration]:
+    def declaration(self) -> Optional[Declaration]:
         """Parse a declaration"""
         self._skip_newlines()
 
@@ -710,51 +556,43 @@ class Parser:
             self._error("Expected declaration, got EOF")
             return None
 
-        if token.type == TokenType.keyword_pub:
-            return self._parse_public_declaration()
+        declaration_parser = self._declaration_parsers.get(token.type)
+        if declaration_parser is None:
+            return self.field()
+        else:
+            return declaration_parser()
 
-        if token.type == TokenType.keyword_def:
-            return self._parse_symbol_declaration()
-
-        if token.type == TokenType.keyword_var:
-            return self._parse_variable_declaration()
-
-        # Field declaration (name: type)
-        return self._parse_field()
-
-    def _parse_public_declaration(self) -> Optional[Public]:
+    def public_declaration(self) -> Optional[Public]:
         """Parse public declaration: pub declaration"""
-        pub_token = self._consume(TokenType.keyword_pub)
-        if pub_token is None:
+        token = self._consume(TokenType.keyword_pub)
+        if token is None:
             return None
 
-        declaration = self._parse_declaration()
+        declaration = self.declaration()
         if declaration is None:
             return None
 
-        return Public(pub_token, declaration)
+        return Public(token, declaration)
 
-    def _parse_field(self) -> Optional[Field]:
+    #  block parsers
+
+    def field(self) -> Optional[Field]:
         """Parse field declaration: name: type"""
-        name = self._parse_identifier()
-        if name is None:
+        identifier = self.identifier()
+        if identifier is None:
             return None
 
         if not self._consume(TokenType.colon):
             return None
 
-        type_expr = self._parse_expression()
+        type_expr = self.expression()
         if type_expr is None:
             return None
 
-        return Field(name.token, name, type_expr)
+        return Field(identifier.token, identifier, type_expr)
 
-    #  block parsers
-
-    def _parse_block(self) -> Optional[Block]:
+    def block_statement(self) -> Optional[Block]:
         """Parse block of statements"""
-        token = self._tokens.peek()
-
         if not self._consume(TokenType.brace_open):
             return None
 
@@ -766,16 +604,18 @@ class Parser:
             if not token or token.type == TokenType.brace_close:
                 break
 
-            stmt = self._parse_statement()
-            if stmt is None:
+            statement = self.statement()
+            if statement is None:
                 return None
 
-            statements.append(stmt)
+            statements.append(statement)
 
         if not self._consume(TokenType.brace_close):
             return None
 
         return Block(token, statements)
+
+    #  helper methods
 
     def _parse_declaration_block(self, terminator: Optional[TokenType], allow_commas: bool) -> Optional[Sequence[Declaration]]:
         """Parse block of declarations"""
@@ -791,7 +631,7 @@ class Parser:
             if terminator and token.type == terminator:
                 break
 
-            declaration = self._parse_declaration()
+            declaration = self.declaration()
             if declaration is None:
                 if terminator and self._tokens.peek() and self._tokens.peek().type == terminator:
                     break
@@ -822,10 +662,7 @@ class Parser:
 
         return declarations
 
-    #  helper methods
-
-    def _parse_comma_separated[T](self, open_token: TokenType, close_token: TokenType,
-                                  parser: Callable[[], Optional[T]]) -> Optional[Sequence[T]]:
+    def _parse_comma_separated[T](self, open_token: TokenType, close_token: TokenType, parser: Callable[[], Optional[T]]) -> Optional[Sequence[T]]:
         """Parse comma-separated list: (item, item, ...)"""
         if not self._consume(open_token):
             return None
@@ -863,10 +700,6 @@ class Parser:
 
             self._error(f"Expected comma or '{close_token}', got {token.type}")
             return None
-
-    def _get_precedence(self, token: Token) -> int:
-        """Get operator precedence"""
-        return self._precedence.get(token.type, 0)
 
     def _skip_newlines(self) -> None:
         """Skip newline tokens"""

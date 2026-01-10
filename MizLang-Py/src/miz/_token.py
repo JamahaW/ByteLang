@@ -10,10 +10,9 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
-from typing import Callable
-from typing import Final
-from typing import Optional
+from typing import Any, Callable, ClassVar, Final, Mapping, Optional
+
+from miz._operators import BinaryOp, UnaryOp
 
 
 @dataclass
@@ -42,6 +41,20 @@ class SourcePosition:
 class Token[T]:
     """Token with value"""
 
+    __dummy: ClassVar = None
+
+    @classmethod
+    def dummy(cls):
+        """Create Dummy token"""
+        if cls.__dummy is None:
+            cls.__dummy = cls(
+                token_type=TokenType.identifier,
+                value=None,
+                source_position=SourcePosition("", 0, 1, 1)
+            )
+
+        return cls.__dummy
+
     def __init__(self, *, token_type: TokenType, value: T, source_position: SourcePosition) -> None:
         self.type = token_type
         self.value: Final = value
@@ -56,26 +69,36 @@ class Token[T]:
 class TokenType(Enum):
     """Token types with regex patterns"""
 
+    _ignore_ = ["_p"]
+
+    @staticmethod
+    def _word(lexeme: str) -> tuple[str, Token[None], None]:
+        return (
+            lexeme,
+            Token[None],
+            None
+        )
+
     # Logical operators
-    logical_not = (r'not\b', Token[None], None)
-    logical_and = (r'and\b', Token[None], None)
-    logical_or = (r'or\b', Token[None], None)
-    type_cast = (r'as\b', Token[None], None)
+    logical_not = _word(r'not\b')
+    logical_and = _word(r'and\b')
+    logical_or = _word(r'or\b')
+    type_cast = _word(r'as\b')
 
     # Keywords
-    keyword_pub = (r'pub\b', Token[None], None)
-    keyword_var = (r'var\b', Token[None], None)
-    keyword_def = (r'def\b', Token[None], None)
-    keyword_fn = (r'fn\b', Token[None], None)
-    keyword_sig = (r'sig\b', Token[None], None)
-    keyword_struct = (r'struct\b', Token[None], None)
-    keyword_if = (r'if\b', Token[None], None)
-    keyword_else = (r'else\b', Token[None], None)
-    keyword_loop = (r'loop\b', Token[None], None)
-    keyword_return = (r'return\b', Token[None], None)
-    keyword_break = (r'break\b', Token[None], None)
-    keyword_continue = (r'continue\b', Token[None], None)
-    keyword_undefined = (r'undefined\b', Token[None], None)
+    keyword_pub = _word(r'pub\b')
+    keyword_var = _word(r'var\b')
+    keyword_def = _word(r'def\b')
+    keyword_fn = _word(r'fn\b')
+    keyword_sig = _word(r'sig\b')
+    keyword_struct = _word(r'struct\b')
+    keyword_if = _word(r'if\b')
+    keyword_else = _word(r'else\b')
+    keyword_loop = _word(r'loop\b')
+    keyword_return = _word(r'return\b')
+    keyword_break = _word(r'break\b')
+    keyword_continue = _word(r'continue\b')
+    keyword_undefined = _word(r'undefined\b')
 
     # Identifiers
     identifier = (r'[a-zA-Z_][a-zA-Z0-9_]*', Token[str], str)
@@ -91,42 +114,42 @@ class TokenType(Enum):
     char = (r'\'(?:[^\'\\]|\\.)\'', Token[int], lambda s: ord(s[1:-1]))
 
     # Brackets
-    paren_open = (r'\(', Token[None], None)
-    paren_close = (r'\)', Token[None], None)
-    bracket_open = (r'\[', Token[None], None)
-    bracket_close = (r'\]', Token[None], None)
-    brace_open = (r'\{', Token[None], None)
-    brace_close = (r'\}', Token[None], None)
+    paren_open = _word(r'\(')
+    paren_close = _word(r'\)')
+    bracket_open = _word(r'\[')
+    bracket_close = _word(r'\]')
+    brace_open = _word(r'\{')
+    brace_close = _word(r'\}')
 
     # Operators
-    shift_left = (r'<<', Token[None], None)
-    shift_right = (r'>>', Token[None], None)
-    equal = (r'==', Token[None], None)
-    not_equal = (r'!=', Token[None], None)
-    less_equal = (r'<=', Token[None], None)
-    greater_equal = (r'>=', Token[None], None)
+    shift_left = _word(r'<<')
+    shift_right = _word(r'>>')
+    equal = _word(r'==')
+    not_equal = _word(r'!=')
+    less_equal = _word(r'<=')
+    greater_equal = _word(r'>=')
 
     # Single character operators
-    plus = (r'\+', Token[None], None)
-    minus = (r'-', Token[None], None)
-    star = (r'\*', Token[None], None)
-    slash = (r'/', Token[None], None)
-    percent = (r'%', Token[None], None)
-    ampersand = (r'&', Token[None], None)
-    pipe = (r'\|', Token[None], None)
-    caret = (r'\^', Token[None], None)
-    less = (r'<', Token[None], None)
-    greater = (r'>', Token[None], None)
+    plus = _word(r'\+')
+    minus = _word(r'-')
+    star = _word(r'\*')
+    slash = _word(r'/')
+    percent = _word(r'%')
+    ampersand = _word(r'&')
+    pipe = _word(r'\|')
+    caret = _word(r'\^')
+    less = _word(r'<')
+    greater = _word(r'>')
 
     # Delimiters
-    comma = (r',', Token[None], None)
-    colon = (r':', Token[None], None)
-    dot = (r'\.', Token[None], None)
-    assign = (r'=', Token[None], None)
+    comma = _word(r',')
+    colon = _word(r':')
+    dot = _word(r'\.')
+    assign = _word(r'=')
 
     # Whitespace
-    whitespace = (r'[ \t]+', Token[None], None)
-    newline = (r'\n', Token[None], None)
+    whitespace = _word(r'[ \t]+')
+    newline = _word(r'\n')
 
     def __init__(self, regex: str, token_class: type[Token], value_from_lexeme: Optional[Callable[[str], Any]]) -> None:
         self.pattern: Final[re.Pattern[str]] = re.compile(regex)
@@ -167,4 +190,81 @@ class TokenType(Enum):
             cls.keyword_pub, cls.keyword_var, cls.keyword_def, cls.keyword_fn, cls.keyword_sig,
             cls.keyword_struct, cls.keyword_if, cls.keyword_else, cls.keyword_loop,
             cls.keyword_return, cls.keyword_break, cls.keyword_continue, cls.keyword_undefined
+        }
+
+    @classmethod
+    def build_precedence(cls) -> Mapping[TokenType, int]:
+        """Build operator precedence table"""
+        return {
+            # Logical (lowest)
+            cls.logical_or: 1,
+            cls.logical_and: 2,
+
+            # Comparison
+            cls.equal: 3,
+            cls.not_equal: 3,
+            cls.less: 3,
+            cls.greater: 3,
+            cls.less_equal: 3,
+            cls.greater_equal: 3,
+
+            # Bitwise
+            cls.pipe: 4,
+            cls.caret: 5,
+            cls.ampersand: 6,
+            cls.shift_left: 7,
+            cls.shift_right: 7,
+
+            # Additive
+            cls.plus: 8,
+            cls.minus: 8,
+
+            # Multiplicative
+            cls.star: 9,
+            cls.slash: 9,
+            cls.percent: 9,
+
+            # Postfix
+            cls.dot: 10,
+            cls.bracket_open: 10,
+            cls.paren_open: 10,
+
+            # type cast
+            cls.type_cast: 11,
+        }
+
+    @classmethod
+    def build_unary_operator_map(cls) -> Mapping[TokenType, UnaryOp]:
+        """Build token to unary operator table"""
+        return {
+            cls.plus: UnaryOp.positive,
+            cls.minus: UnaryOp.negative,
+            cls.star: UnaryOp.star,
+            cls.ampersand: UnaryOp.address_of,
+            cls.logical_not: UnaryOp.logical_not,
+        }
+
+    @classmethod
+    def build_binary_operator_map(cls) -> Mapping[TokenType, BinaryOp]:
+        """Build token to unary operator table"""
+        return {
+            cls.plus: BinaryOp.add,
+            cls.minus: BinaryOp.sub,
+            cls.star: BinaryOp.mul,
+            cls.slash: BinaryOp.div,
+            cls.percent: BinaryOp.mod,
+            cls.ampersand: BinaryOp.bitwise_and,
+            cls.pipe: BinaryOp.bitwise_or,
+            cls.caret: BinaryOp.bitwise_xor,
+            cls.shift_left: BinaryOp.shift_left,
+            cls.shift_right: BinaryOp.shift_right,
+            cls.equal: BinaryOp.equal,
+            cls.not_equal: BinaryOp.not_equal,
+            cls.less: BinaryOp.less,
+            cls.greater: BinaryOp.greater,
+            cls.less_equal: BinaryOp.less_equal,
+            cls.greater_equal: BinaryOp.greater_equal,
+            cls.logical_and: BinaryOp.logical_and,
+            cls.logical_or: BinaryOp.logical_or,
+            cls.type_cast: BinaryOp.type_cast,
         }

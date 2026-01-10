@@ -84,7 +84,7 @@ var global_vector: Vector2i = { x: 100, y: 200 }
 var global_user: User = undefined
 
 // Нативная функция ввода (симуляция)
-def input = cast(*fn() i32, 0x67)
+def input = cast(*sig() i32, 0x67)
 
 // Публичная функция с низкоуровневым управлением
 pub def lowlevel_calculate = fn(a: i32, b: *Vector2i) i32 {

@@ -1,7 +1,6 @@
 from pathlib import Path
 
-from miz import Lexer
-from miz import Parser
+from miz import Lexer, Parser
 
 
 def test_parser(path: Path):
@@ -22,7 +21,7 @@ def test_parser(path: Path):
         return
 
     parser = Parser(tokens)
-    ast = parser.parse_module()
+    ast = parser.module()
 
     if ast is not None:
         print(f"{ast=}")

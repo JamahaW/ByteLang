@@ -8,13 +8,9 @@ Lexical Analyzer
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Final
-from typing import Optional
-from typing import Sequence
+from typing import Final, Optional, Sequence
 
-from miz._token import SourcePosition
-from miz._token import Token
-from miz._token import TokenType
+from miz._token import SourcePosition, Token, TokenType
 
 
 @dataclass(frozen=True)

@@ -5,9 +5,7 @@
 Streams
 """
 
-from typing import Final
-from typing import Optional
-from typing import Sequence
+from typing import Final, Optional, Sequence
 
 
 class OutputStream[T]:
