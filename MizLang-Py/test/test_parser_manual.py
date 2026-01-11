@@ -24,7 +24,7 @@ def test_parser(path: Path):
     ast = parser.module()
 
     if ast is not None:
-        print(f"{ast=}")
+        print(f"{ast}")
     else:
         print('\n'.join((f"{i:4}: {t.type}({t.value})" for i, t in enumerate(tokens))))
         print('\n'.join(map(str, parser.errors())))

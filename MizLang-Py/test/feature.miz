@@ -1,1 +1,1 @@
-var point: *[]struct { x: f32, y: f32 } = &{{1 + 2 * 3.5, -5 << 1 & 2}}
+var point: *[]struct { x: f32, y: c.uint8_t } = &{{(a.b.c + 2) * 3.5 + 2, -5 << 1 & 2}}
