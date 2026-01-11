@@ -61,7 +61,7 @@ def User = struct {
     var static_count: i32 = 0,
 
     // Методы
-    def init(self: *Self, name: str) void {
+    def init = fn(self: *Self, name: str) void {
         self.name = name
         self.age = 0
         // Использование нативной операции напрямую
