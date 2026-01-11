@@ -1,5 +1,7 @@
 // MizLang
 
+def expr = 1 + 2 * 3.5 as u8
+
 def u = undefined
 
 def pi = 3.14

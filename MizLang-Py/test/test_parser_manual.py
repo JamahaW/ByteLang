@@ -31,4 +31,4 @@ def test_parser(path: Path):
 
 
 if __name__ == "__main__":
-    test_parser(Path("test.miz"))
+    test_parser(Path("feature.miz"))

@@ -15,6 +15,9 @@ class UnaryOp(Enum):
     address_of = auto()
     logical_not = auto()
 
+    def __repr__(self):
+        return self.name
+
 
 class BinaryOp(Enum):
     """Binary operators"""
@@ -46,3 +49,6 @@ class BinaryOp(Enum):
     # Logical
     logical_and = auto()
     logical_or = auto()
+
+    def __repr__(self):
+        return self.name
